@@ -1,34 +1,42 @@
-# Source files
-src/
+# Exclude parent directory files
+../**
+
+# Exclude source files
+src/**
 tsconfig.json
-*.tsbuildinfo
-tests/
+tsconfig.tsbuildinfo
 
-# Development files
-.vscode/
-.vscode-test/
-node_modules/
+# Exclude development files
+scripts/**
+*.md
+.gitignore
+.cursorrules
 
-# Include server dependencies (but exclude extension's own node_modules)
-!server/node_modules/
+# Exclude node modules (should be bundled or copied separately)
+node_modules/**
 
-# Build artifacts that shouldn't be included
-*.log
-.DS_Store
+# Exclude build artifacts
+*.vsix
 
-# Language server source (we'll copy the built output)
-../helium-dsl-language-server/src/
-../helium-dsl-language-server/tsconfig.json
-../helium-dsl-language-server/tests/
+# Exclude language server source (only need compiled output)
+../helium-dsl-language-server/**
 
-# Generated source files (we'll copy the compiled outputs)
-../generated/grammar/
-../generated/parser/*.ts
-../generated/parser/*.interp
-../generated/parser/*.tokens
+# Exclude generated files in parent (only need copied ones)
+../generated/**
 
-# Keep compiled parser files and metadata
-!../generated/parser/generated/
-!../generated/bifs/
-!../generated/rules/
+# Exclude scripts in parent
+../scripts/**
 
+# Exclude other root files
+../validate-dsl.sh
+../package.json
+../package-lock.json
+../tsconfig.json
+../test-munic-chat.js
+../parser-warnings-example.md
+../old_rules.md
+../README.md
+../LICENSE
+../.gitignore
+../.cursorrules
+../.git/**

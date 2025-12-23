@@ -20,7 +20,8 @@
     "watch": "ts-node scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
     "test": "npm -ws test",
-    "package": "npm -w helium-dsl-vscode run package"
+    "package": "npm -w helium-dsl-vscode run package",
+    "package:all": "ts-node scripts/package.ts"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

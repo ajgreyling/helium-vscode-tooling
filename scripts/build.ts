@@ -32,7 +32,7 @@ async function main() {
   // 4. Generate TypeScript parser
   run("npm run build:parser");
 
-  // 5. Extract lint rules from rules.md
+  // 5. Generate lint rules
   run("ts-node scripts/extract-rules.ts");
 
   // 6. Generate BIF metadata

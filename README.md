@@ -15,7 +15,7 @@ helium-vscode-tooling/
 │   ├── extract-grammar.ts    # Extract ANTLR3 grammar from Java project
 │   ├── convert-grammar.ts    # Convert ANTLR3 to ANTLR4
 │   ├── validate-grammar.ts   # Validate converted grammar
-│   ├── extract-rules.ts      # Extract linting rules from rules.md
+│   ├── extract-rules.ts      # Generate linting rules
 │   ├── generate-bif-metadata.ts  # Generate BIF metadata
 │   ├── generate-textmate.ts  # Generate TextMate grammar
 │   ├── build.ts             # Main build orchestrator
@@ -63,7 +63,7 @@ This will:
 2. Extract the ANTLR3 grammar
 3. Convert it to ANTLR4
 4. Generate the TypeScript parser
-5. Extract linting rules from rules.md
+5. Generate linting rules
 6. Generate BIF metadata
 7. Generate TextMate grammar for syntax highlighting
 8. Build the language server
@@ -127,12 +127,12 @@ npm run version-check
 The validation script automatically configures the following paths:
 
 - **Grammar Source**: `${DSL_COMMONS}/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g`
-- **Rules Source**: `${DSL_COMMONS}/rules.md`
+- **Rules**: Defined in `scripts/extract-rules.ts`
 - **Sample Project**: Path provided via `-p` parameter
 
 ## Linting Rules
 
-The linter currently implements the following rules extracted from `rules.md`:
+The linter currently implements the following rules:
 
 1. **no-var-in-else** (error): Variables cannot be declared in else blocks
 2. **dot-notation-limit** (warning): Dot notation can only be used once per statement  

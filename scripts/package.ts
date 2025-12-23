@@ -8,23 +8,12 @@ const extensionDir = path.join(root, "helium-dsl-vscode");
 async function main() {
   console.log("🚀 Starting extension packaging process...\n");
 
-  // 1. Build all prerequisites (grammar, parser, rules, BIFs)
-  console.log("📦 Step 1: Building prerequisites (grammar, parser, rules, BIFs)...");
+  // 1. Build entire pipeline (grammar, parser, rules, BIFs, language server, extension)
+  console.log("📦 Step 1: Building pipeline (grammar, parser, rules, BIFs, language server, extension)...");
   execSync("npm run build:all", { cwd: root, stdio: "inherit" });
 
-  // 2. Build language server
-  console.log("\n🔧 Step 2: Building language server...");
-  execSync("npm run build", {
-    cwd: path.join(root, "helium-dsl-language-server"),
-    stdio: "inherit",
-  });
-
-  // 3. Build extension (this will run prepublish which bundles everything)
-  console.log("\n📝 Step 3: Building extension and bundling dependencies...");
-  execSync("npm run build", { cwd: extensionDir, stdio: "inherit" });
-
-  // 4. Package the extension
-  console.log("\n📦 Step 4: Creating VSIX package...");
+  // 2. Package the extension (prepublish will run automatically and bundle everything)
+  console.log("\n📦 Step 2: Creating VSIX package...");
   execSync("npm run package", { cwd: extensionDir, stdio: "inherit" });
 
   // 5. Find and report the generated .vsix file

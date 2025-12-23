@@ -5,7 +5,7 @@
   "publisher": "mezzanineware",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mezzanineware/helium-vscode-tooling.git"
+    "url": "https://github.com/ajgreyling/helium-vscode-tooling.git"
   },
   "license": "MIT",
   "engines": {
@@ -64,7 +64,7 @@
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",
-    "package": "vsce package",
+    "package": "vsce package --no-yarn",
     "test": "echo \"No tests yet\""
   },
   "devDependencies": {

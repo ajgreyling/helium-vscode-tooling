@@ -23,7 +23,7 @@ usage() {
     echo "Usage: $0 -d <dsl-commons-path> -p <sample-project-path>"
     echo ""
     echo "Arguments:"
-    echo "  -d    Path to appexec-dsl-commons folder (contains WebDSLParser-lib and rules.md)"
+    echo "  -d    Path to appexec-dsl-commons folder (contains WebDSLParser-lib)"
     echo "  -p    Path to sample DSL project to validate (contains .mez files)"
     echo ""
     echo "Example:"
@@ -59,15 +59,9 @@ fi
 
 # Validate required files/folders exist
 GRAMMAR_FILE="$DSL_COMMONS_PATH/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g"
-RULES_FILE="$DSL_COMMONS_PATH/rules.md"
 
 if [ ! -f "$GRAMMAR_FILE" ]; then
     echo -e "${RED}Error: Grammar file not found: $GRAMMAR_FILE${NC}"
-    exit 1
-fi
-
-if [ ! -f "$RULES_FILE" ]; then
-    echo -e "${RED}Error: Rules file not found: $RULES_FILE${NC}"
     exit 1
 fi
 
@@ -122,7 +116,6 @@ import path from "node:path";
 import fs from "fs-extra";
 
 const root = path.resolve(__dirname, "..");
-const rulesMd = process.env.RULES_FILE || path.resolve(root, "../rules.md");
 const output = path.join(root, "generated/rules/dsl-rules.json");
 
 type Rule = {
@@ -134,40 +127,27 @@ type Rule = {
 };
 
 async function main() {
-  if (!(await fs.pathExists(rulesMd))) {
-    throw new Error(`rules.md not found at ${rulesMd}`);
-  }
-
-  const content = await fs.readFile(rulesMd, "utf8");
-  const rules: Record<string, Rule> = {};
-
-  // Minimal heuristic-based extraction for critical rules.
-  if (content.includes("Variables cannot be declared in the else block")) {
-    rules["no-var-in-else"] = {
+  // Define linting rules directly
+  const rules: Record<string, Rule> = {
+    "no-var-in-else": {
       id: "no-var-in-else",
       severity: "error",
       message: "Variables cannot be declared in else blocks. Declare before if statement.",
       category: "variables",
-    };
-  }
-
-  if (content.includes("Dot notation can only be used once")) {
-    rules["dot-notation-limit"] = {
+    },
+    "dot-notation-limit": {
       id: "dot-notation-limit",
       severity: "warning",
       message: "Dot notation can only be used once per statement.",
       category: "syntax",
-    };
-  }
-
-  if (content.includes("Naming Conventions")) {
-    rules["naming-conventions"] = {
+    },
+    "naming-conventions": {
       id: "naming-conventions",
       severity: "warning",
       message: "Follow naming conventions",
       category: "style",
-    };
-  }
+    },
+  };
 
   await fs.ensureDir(path.dirname(output));
   await fs.writeJSON(output, rules, { spaces: 2 });

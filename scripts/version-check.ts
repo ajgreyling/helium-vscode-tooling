@@ -34,7 +34,7 @@ async function main() {
   }
 
   // Rules file hash
-  const rulesFile = "/Users/ajgreyling/code/appexec-dsl-commons/rules.md";
+  const rulesFile = "";
   if (await fs.pathExists(rulesFile)) {
     const hash = await fileHash(rulesFile);
     console.log(`Rules File Hash: ${hash.substring(0, 12)}...`);

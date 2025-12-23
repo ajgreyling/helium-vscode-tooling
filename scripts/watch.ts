@@ -4,7 +4,7 @@ import path from "node:path";
 
 const root = path.resolve(__dirname, "..");
 const grammarFile = "/Users/ajgreyling/code/appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g";
-const rulesFile = "/Users/ajgreyling/code/appexec-dsl-commons/rules.md";
+const rulesFile = "";
 
 console.log("Watching for changes...");
 console.log("  Grammar:", grammarFile);
