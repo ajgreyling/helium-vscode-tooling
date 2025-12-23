@@ -168,6 +168,18 @@ async function convert() {
   // Fix NEQU token if it was corrupted (should be '!=' not '=')
   converted = converted.replace(/NEQU\s*:\s*'='\s*;/g, "NEQU       : '!=';");
 
+  // Fix accessExpression to allow chained property access (e.g., request.body.jsonPut)
+  // Change from: ID '.' ID to: ID ('.' ID)+ to allow chaining
+  converted = converted.replace(
+    /accessExpression\s*:\s*ID\s*'\.'\s*ID\s*\n\s*\|[^\n]*ID\s*':'[^\n]*ID\s*'\.'\s*ID[^\n]*\n\s*\|[^\n]*ID[^\n]*\n\s*\|[^\n]*ID\s*':'[^\n]*ID[^\n]*\n\s*;/s,
+    `accessExpression
+	:	ID ('.' ID)+
+	|	ID ':' ID ('.' ID)+
+	|	ID
+	|	ID ':' ID
+	;`
+  );
+
   await fs.writeFile(target, converted, "utf8");
   console.log(`Converted grammar written to ${target}`);
 }

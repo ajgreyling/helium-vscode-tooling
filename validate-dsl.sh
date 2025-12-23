@@ -467,3 +467,4 @@ echo ""
 echo -e "Sample project validated: ${BLUE}$SAMPLE_PROJECT_PATH${NC}"
 echo ""
 
+
