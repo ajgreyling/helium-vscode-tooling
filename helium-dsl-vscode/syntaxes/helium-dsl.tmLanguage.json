@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Helium DSL",
+  "scopeName": "source.helium-dsl",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "name": "keyword.control.helium",
+      "match": "\\b()\\b"
+    },
+    {
+      "name": "support.namespace.helium",
+      "match": "\\b()(?=:)"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.helium",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.helium",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.helium",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "include": "#escapes"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.block.helium",
+          "begin": "/%",
+          "end": "%/"
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.helium",
+          "match": "\\\\."
+        }
+      ]
+    }
+  },
+  "fileTypes": [
+    "mez"
+  ],
+  "uuid": "a0416cfa-4b07-44d4-9f7a-8ad7f3f1b0f1"
+}

@@ -1,0 +1,37 @@
+{
+  "name": "helium-vscode-tooling",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Workspace for Helium DSL VSCode extension and language server",
+  "workspaces": [
+    "helium-dsl-vscode",
+    "helium-dsl-language-server"
+  ],
+  "scripts": {
+    "build:all": "ts-node scripts/build.ts",
+    "build:extract": "ts-node scripts/extract-grammar.ts",
+    "build:grammar": "ts-node scripts/convert-grammar.ts",
+    "build:validate": "ts-node scripts/validate-grammar.ts",
+    "build:parser": "antlr4ts -visitor generated/grammar/MezDSL.g4 -o generated/parser/",
+    "build:rules": "ts-node scripts/extract-rules.ts",
+    "build:bifs": "ts-node scripts/generate-bif-metadata.ts",
+    "build:textmate": "ts-node scripts/generate-textmate.ts",
+    "version-check": "ts-node scripts/version-check.ts",
+    "watch": "ts-node scripts/watch.ts",
+    "lint": "echo \"No lint configured yet\"",
+    "test": "npm -ws test",
+    "package": "npm -w helium-dsl-vscode run package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "antlr4ts": "^0.5.0-alpha.4",
+    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "chokidar": "^4.0.1",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.4.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
+
