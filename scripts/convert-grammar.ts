@@ -170,13 +170,47 @@ async function convert() {
 
   // Fix accessExpression to allow chained property access (e.g., request.body.jsonPut)
   // Change from: ID '.' ID to: ID ('.' ID)+ to allow chaining
+  // Match after tree rewrite operators are removed
   converted = converted.replace(
-    /accessExpression\s*:\s*ID\s*'\.'\s*ID\s*\n\s*\|[^\n]*ID\s*':'[^\n]*ID\s*'\.'\s*ID[^\n]*\n\s*\|[^\n]*ID[^\n]*\n\s*\|[^\n]*ID\s*':'[^\n]*ID[^\n]*\n\s*;/s,
+    /accessExpression\s*:\s*ID\s*'\.'\s*ID\s*\n\s*\|[^\n]*ID\s*':'[^\n]*ID\s*'\.'\s*ID\s*\n\s*\|[^\n]*ID\s*\n\s*\|[^\n]*ID\s*':'[^\n]*ID\s*\n\s*;/s,
     `accessExpression
 	:	ID ('.' ID)+
-	|	ID ':' ID ('.' ID)+
+	|	ID ':' ID ('.' ID)*
 	|	ID
 	|	ID ':' ID
+	;`
+  );
+
+  // Improve jsonExpressionBIF to support left-recursive chaining (e.g., obj.jsonGet("a").jsonGet("b"))
+  // Match the full jsonExpressionBIF rule after tree rewrite operators are removed
+  converted = converted.replace(
+    /jsonExpressionBIF\s*:\s*accessExpression\s*'\.'\s*JSONGET\s*'\([^)]+\)'\s*\(\s*'\.'\s*JSONGET\s*'\([^)]+\)'\s*\)\*\s*\n\s*\|[^\n]*accessExpression\s*'\.'\s*JSONCONTAINS[^\n]*\n\s*\|[^\n]*accessExpression\s*'\.'\s*JSONKEYS[^\n]*\n\s*;/s,
+    `jsonExpressionBIF
+	:	accessExpression '.' JSONGET '(' expression ')' ( '.' JSONGET '(' expression ')' )*
+
+	|	jsonExpressionBIF '.' JSONGET '(' expression ')'
+
+	|	accessExpression '.' JSONCONTAINS '(' expression ')'
+
+	|	accessExpression '.' JSONKEYS '(' ')'
+
+	;`
+  );
+
+  // Fix atomicExpression precedence - put bifExpression before functionCall for better parsing
+  // Match the full atomicExpression rule including all alternatives and closing semicolon
+  // Use a more precise pattern that matches the entire rule block
+  converted = converted.replace(
+    /atomicExpression\s*:\s*literalExpression\s*\n\s*\|[^\n]*enumValueExpression[^\n]*\n\s*\|[^\n]*functionCall[^\n]*\n\s*\|[^\n]*accessExpression[^\n]*\n\s*\|[^\n]*bifExpression[^\n]*\n\s*\|[^\n]*incrementExpression[^\n]*\n\s*\|[^\n]*decrementExpression[^\n]*\n\s*\|[^\n]*'\([^)]+\)'[^\n]*\n\s*;/s,
+    `atomicExpression
+	:	literalExpression
+	|	enumValueExpression
+	|	bifExpression
+	|	functionCall
+	|	accessExpression
+	|	incrementExpression
+	|	decrementExpression
+	|	'(' expression ')'
 	;`
   );
 
