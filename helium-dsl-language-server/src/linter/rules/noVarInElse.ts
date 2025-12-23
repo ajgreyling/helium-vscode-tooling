@@ -7,9 +7,27 @@ export function applyNoVarInElse(ctx: LintContext) {
   let braceDepth = 0;
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
-    if (/else\b/.test(trimmed)) {
+    // Only flag plain "else" blocks, not "else if" blocks
+    // The rule applies to: } else { but not } else if (...) {
+    // Check for "else" that is NOT followed by "if"
+    if (/}\s*else\s*{/.test(trimmed)) {
+      // This is a plain else block
       inElse = true;
       braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+      return;
+    }
+    if (/}\s*else\s*$/.test(trimmed)) {
+      // Check next line to see if it's "if" - if so, skip it
+      const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
+      if (!nextLine.startsWith('if')) {
+        inElse = true;
+        braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+        return;
+      }
+    }
+    // Reset if we see "else if"
+    if (/else\s+if\s*\(/.test(trimmed)) {
+      inElse = false;
       return;
     }
     if (inElse) {
