@@ -1,0 +1,34 @@
+# Source files
+src/
+tsconfig.json
+*.tsbuildinfo
+tests/
+
+# Development files
+.vscode/
+.vscode-test/
+node_modules/
+
+# Include server dependencies (but exclude extension's own node_modules)
+!server/node_modules/
+
+# Build artifacts that shouldn't be included
+*.log
+.DS_Store
+
+# Language server source (we'll copy the built output)
+../helium-dsl-language-server/src/
+../helium-dsl-language-server/tsconfig.json
+../helium-dsl-language-server/tests/
+
+# Generated source files (we'll copy the compiled outputs)
+../generated/grammar/
+../generated/parser/*.ts
+../generated/parser/*.interp
+../generated/parser/*.tokens
+
+# Keep compiled parser files and metadata
+!../generated/parser/generated/
+!../generated/bifs/
+!../generated/rules/
+

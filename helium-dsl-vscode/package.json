@@ -2,8 +2,7 @@
   "name": "helium-dsl-vscode",
   "displayName": "Helium DSL",
   "version": "0.1.0",
-  "private": true,
-  "publisher": "helium",
+  "publisher": "mezzanineware",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -55,7 +54,8 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
+    "vscode:prepublish": "node scripts/prepublish.js",
+    "prepublish": "node scripts/prepublish.js",
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",

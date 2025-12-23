@@ -11,7 +11,7 @@ let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   const serverModule = context.asAbsolutePath(
-    path.join("..", "helium-dsl-language-server", "out", "server.js")
+    path.join("server", "out", "server.js")
   );
 
   const serverOptions: ServerOptions = {

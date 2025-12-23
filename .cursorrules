@@ -1,0 +1,1111 @@
+# Helium DSL Cursor Rules
+
+This project uses **Helium DSL**, a domain-specific language with Java-like syntax that runs on the Helium platform.
+
+## Project Structure
+
+- **Model files**: `model/*.mez` (objects, enums, validators)
+- **Validators**: `model/validators/*.mez`
+- **Views**: `web-app/views/*.vxml`
+- **Presenters**: `web-app/presenters/*.mez`
+- **Services/APIs**: `services/*.mez`
+- **SQL Scripts**: `sql-scripts/*` (PostgreSQL)
+- **Language file**: `web-app/lang/en.lang` (INI format)
+
+---
+
+## Core Syntax Rules
+
+### Critical Constraints
+
+**DO:**
+- Declare variables before `if` statements, never in `else` blocks
+- Use dot notation only once per statement (extract to intermediate variable)
+- Use explicit boolean comparisons: `if (boolVar == true)` not `if (boolVar)`
+- Use `== false` for false checks, never `!boolVar`
+
+**DON'T:**
+- ❌ Declare variables in `else` blocks
+- ❌ Use multiple dot notation chains: `obj.attr.subattr.method()`
+- ❌ Use ternary operator (`?:`) - use `if/else` instead
+- ❌ Use `+=` or `-=` operators - use `i = i + 1`
+- ❌ Compound selectors - use separate statements
+- ❌ Use `random` as variable name (reserved word)
+- ❌ Access BIF results with dot notation directly - assign to variable first
+
+### Dot Notation Limit
+
+**WRONG:**
+```mez
+rental.dvd_title.available_copies = rental.dvd_title.available_copies + 1;
+rental.dvd_title.save();
+```
+
+**CORRECT:**
+```mez
+DVD_Title rentalDvdTitle = rental.dvd_title;
+rentalDvdTitle.available_copies = rentalDvdTitle.available_copies + 1;
+rentalDvdTitle.save();
+```
+
+---
+
+## Data Types
+
+### Primitive Types
+
+- `int` - Integer
+- `decimal` - Decimal number
+- `bigint` - Long integer (suffix with `l`: `123l`)
+- `bool` - Boolean (`true`/`false`)
+- `string` - String (double quotes or multi-line `/% ... %/`)
+- `date` - Date
+- `datetime` - Date and time
+- `uuid` - UUID
+- `void` - No return value
+- `blob` - Binary large object
+- `json` - JSON object
+- `jsonarray` - JSON array
+
+### Collections
+
+Use `[]` syntax: `Person[] people;`
+
+### Literals
+
+- Integer: `123`
+- Long: `123l`
+- Decimal: `123.45`
+- String: `"text"` or `/%
+    multi-line
+%/`
+- Boolean: `true`, `false`
+- Null: `null`
+
+---
+
+## Naming Conventions
+
+- **Functions**: `camelCase` (e.g., `getUserData`)
+- **Units**: `PascalCase` (e.g., `UserManagement`)
+- **Variables**: `camelCase` (e.g., `userName`)
+- **Enums**: `UPPERCASE` (e.g., `GENDER`, `STATUS`)
+- **Enum values**: `PascalCase` (e.g., `Male`, `Female`)
+- **Attributes/Fields**: `snake_case` (e.g., `first_name`, `created_at`)
+- **Objects**: `Pascal_Snake_Case` (e.g., `User_Profile`, `Order_Item`)
+- **Reserved words**: `random` is reserved - use `randomNumber` instead
+
+---
+
+## Control Structures
+
+### If/Else
+
+**Syntax:**
+```mez
+if (condition == true) {
+    // code
+} else if (otherCondition == false) {
+    // code
+} else {
+    // code
+}
+```
+
+**Rules:**
+- Condition must be explicit comparison (`==`, `!=`, `>`, `<`, etc.)
+- Cannot declare variables in `else` blocks
+- Use `== false` for false checks, not `!boolVar`
+
+### For Loop
+
+**Syntax:**
+```mez
+for (init?; condition?; post?) {
+    // code
+}
+```
+
+**Example:**
+```mez
+for (int i = 0; i < 10; i++) {
+    // code
+}
+```
+
+### Foreach Loop
+
+**Syntax:**
+```mez
+foreach(Type variableName: collection) {
+    // code
+}
+```
+
+**Example:**
+```mez
+foreach(Person person: people) {
+    person.name = "Updated";
+}
+```
+
+### Try/Catch/Finally
+
+**Syntax:**
+```mez
+try {
+    // code
+} catch (Exception e) {
+    // handle error
+} finally {
+    // cleanup
+}
+```
+
+### Return Statement
+
+```mez
+return expression;
+// or
+return;  // for void functions
+```
+
+---
+
+## Functions
+
+### Function Definition
+
+**Syntax:**
+```mez
+returnType functionName(type1 param1, type2 param2) {
+    // code
+    return value;
+}
+```
+
+**Example:**
+```mez
+int add(int a, int b) {
+    return a + b;
+}
+```
+
+### Function Calls
+
+- Local: `functionName(arg1, arg2)`
+- Unit-scoped: `UnitName:functionName(arg1, arg2)`
+
+**Note:** All parameters are passed by value, not by reference.
+
+---
+
+## Objects
+
+### Persistent Objects
+
+**Syntax:**
+```mez
+persistent object ObjectName {
+    string attribute_name;
+    int another_attribute;
+    
+    beforeCreate {
+        before.created_at = Mez:now();
+    }
+}
+```
+
+**Methods:**
+- `.save()` - Save or update object
+- `.read(uuid)` - Read object by UUID
+- `._id` - Primary key UUID property
+
+**BIFs:**
+- `ObjectName:new()` - Create new instance
+- `ObjectName:delete(uuid)` - Delete object
+
+**Triggers:**
+- `beforeCreate`, `afterCreate`
+- `beforeUpdate`, `afterUpdate`
+- `beforeDelete`, `afterDelete`
+
+**In triggers:** Use `before.` prefix for attributes being set.
+
+### Non-Persistent Objects
+
+**Syntax:**
+```mez
+object ObjectName {
+    string attribute_name;
+    int another_attribute;
+}
+```
+
+Used for SQL query results, API responses, and temporary data structures.
+
+### Relationships
+
+**Syntax:**
+```mez
+persistent object Parent {
+    string name;
+    @OneToMany Child children via parent;
+}
+
+persistent object Child {
+    string name;
+    @ManyToOne Parent parent via children;
+}
+```
+
+**Multiplicities:**
+- `@OneToOne`
+- `@OneToMany`
+- `@ManyToOne`
+- `@ManyToMany`
+
+**Rules:**
+- Relationships declared after attributes
+- Use `via` keyword to specify inverse relationship
+- No `[]` after type name in relationship declaration
+- Use `relationshipIn()` and `notRelationshipIn()` selectors, not `equals()` for relationships
+
+---
+
+## Enums
+
+**Syntax:**
+```mez
+enum ENUM_NAME {
+    Value1,
+    Value2,
+    Value3
+}
+```
+
+**Usage:**
+```mez
+ENUM_NAME value = ENUM_NAME.Value1;
+// or
+ENUM_NAME value = ENUM_NAME{Value1};
+```
+
+---
+
+## Units (Presenters)
+
+**Syntax:**
+```mez
+unit UnitName;
+string variableName;
+
+void init() {
+    variableName = "value";
+}
+
+returnType functionName() {
+    // code
+}
+```
+
+Units group related static variables and functions for view logic.
+
+---
+
+## Annotations
+
+### Object Annotations
+
+- `@Role("Role Name")` - Define user role
+- `@Restrict("role", selectorBIF)` - Restrict object access
+- `@NotTracked` - Disable change tracking
+
+### Attribute Annotations
+
+- `@ValidatorName("translation.key")` - Apply validator
+- `@Restrict("role1", "role2")` - Restrict attribute access
+
+### Function Annotations
+
+- `@Scheduled("cron expression")` - Schedule function
+- `@Test` - Mark as unit test
+- `@ReceiveSms("keyword")` - Handle SMS
+- `@USSD("code")` - Handle USSD
+- `@InviteUser` - User invitation handler
+- `@RoleName` - Role name function
+- `@OnPaymentUpdate` - Payment update handler
+- `@OnScheduledFunctionResultUpdate` - Scheduled function result handler
+- `@OnSmsResultUpdate` - SMS result handler
+- `@OnPaymentStatusRequestResultUpdate` - Payment status request handler
+- `@POST("path")` - HTTP POST endpoint
+- `@GET("path")` - HTTP GET endpoint
+- `@PUT("path")` - HTTP PUT endpoint
+- `@DELETE("path")` - HTTP DELETE endpoint
+- `@ResponseExpand("attr1", "attr2")` - Expand response attributes
+- `@ResponseExclude("attr1", "attr2")` - Exclude response attributes
+
+---
+
+## Validators
+
+**Definition:**
+```mez
+validator ValidatorName {
+    notnull();
+    minval(0);
+    maxval(100);
+    minlen(2);
+    maxlen(255);
+    regex("pattern");
+}
+```
+
+**Usage:**
+```mez
+persistent object Person {
+    @AgeValidator("validator.age")
+    int age;
+}
+```
+
+**Validator BIFs:**
+- `notnull()` - Required field
+- `minval(value)` - Minimum numeric value
+- `maxval(value)` - Maximum numeric value
+- `minlen(length)` - Minimum string length
+- `maxlen(length)` - Maximum string length
+- `regex("pattern")` - Regular expression validation
+
+**Note:** Validators only used in model files, not in view files.
+
+---
+
+## Built-in Functions (BIFs)
+
+### Mez Namespace
+
+**Logging:**
+- `Mez:log(expression)` - Log at INFO level
+- `Mez:log(key, expression)` - Log with key
+- `Mez:warn(expression)` - Log at WARNING level
+- `Mez:error(expression)` - Log at SEVERE level
+
+**Alerts:**
+- `Mez:alert(messageKey)` - Information popup
+- `Mez:alert(messageKey, titleKey?)` - With optional title
+- `Mez:alertWarn(messageKey, titleKey?)` - Warning popup
+- `Mez:alertError(messageKey, titleKey?)` - Error modal
+
+**Date/Time:**
+- `Mez:now()` → `datetime` - Current datetime
+- `Mez:today()` → `date` - Current date
+
+**SMS:**
+- `Mez:sms(phone, attributeName, translationKey, conversationId?)` - Send SMS
+- `MezSms:send(phone, attributeName, translationKey, conversationId?)` - Send SMS
+- `MezSms:endConversation(conversationId)` - End SMS conversation
+- `MezSms:getConversationId(phone)` → `string` - Get conversation ID
+
+**Email:**
+- `Mez:email(to, descKey, subjectKey, bodyKey, attachmentKey*, enumValue?)` - Send email
+- `Mez:emailAttach(to, descKey, subjectKey, bodyKey, namedAttachments+, enumValue?)` - Email with named attachments
+- `Mez:emailCsv(to, csvData, descKey, subjectKey, bodyKey, attachmentName?)` - Email CSV
+
+**User:**
+- `Mez:userRole()` → `string` - Current user's role name
+- `RoleName:user()` → `RoleName` - Current user object
+
+**Crypto:**
+- `Mez:encrypt(data, key?)` → `string` - Encrypt data
+- `Mez:decrypt(encryptedData, key?)` → `string` - Decrypt data
+- `Mez:createCryptoKey(algorithm, keySize)` → `string` - Create crypto key
+- `Mez:cbcEncrypt(data, key, iv)` → `string` - CBC encrypt
+- `Mez:cbcDecrypt(encryptedData, key, iv)` → `string` - CBC decrypt
+
+**Reports:**
+- `Mez:generateReport(reportName, params, format, outputName?)` → `blob` - Generate report
+- `Mez:downloadReport(reportName, params, format, outputName?)` - Download report
+- `Mez:downloadFile(object, attributeName, outputName?)` - Download file
+
+**Payments:**
+- `Mez:requestPaymentStatus(paymentId)` - Request payment status
+
+**Batch:**
+- `Mez:createBatch(collection, batchSize)` → `jsonarray` - Create batch
+
+**CSV:**
+- `Mez:collectionCsv(collection, delimiter, quote?)` → `string` - Convert collection to CSV
+
+### String Namespace
+
+**Basic Operations:**
+- `String:concat(str1, str2, ...)` → `string` - Concatenate strings
+- `String:length(str)` → `int` - String length
+- `String:lower(str)` → `string` - Lowercase
+- `String:upper(str)` → `string` - Uppercase
+- `String:substring(str, start, end)` → `string` - Extract substring
+
+**Search/Compare:**
+- `String:startsWith(str, prefix)` → `bool` - Check prefix
+- `String:endsWith(str, suffix)` → `bool` - Check suffix
+- `String:indexOf(str, search)` → `int` - Find index
+- `String:regexMatch(str, pattern)` → `bool` - Regex match
+- `String:regexFind(str, pattern, group?)` → `string` - Regex find
+
+**Replace:**
+- `String:replaceAll(str, search, replace)` → `string` - Replace all occurrences
+- `String:regexReplaceFirst(str, pattern, replace)` → `string` - Regex replace first
+- `String:regexReplaceAll(str, pattern, replace)` → `string` - Regex replace all
+
+**Split/Join:**
+- `String:split(str, delimiter)` → `string[]` - Split string
+- `String:join(collection, delimiter)` → `string` - Join collection
+
+**Encoding:**
+- `String:urlEncode(str)` → `string` - URL encode
+- `String:urlDecode(str)` → `string` - URL decode
+
+**Translation:**
+- `String:translate(key)` → `string` - Translate key
+
+**Deprecated (use String:* instead):**
+- `Strings:concat(...)` - Use `String:concat`
+- `Strings:length(str)` - Use `String:length`
+- `Strings:split(str, delimiter)` - Use `String:split`
+
+### Date Namespace
+
+**Current:**
+- `Date:now()` → `datetime` - Current datetime
+- `Date:today()` → `date` - Current date
+
+**Conversion:**
+- `Date:fromString(dateStr)` → `date` - Parse date string
+- `Date:fromISOString(isoStr)` → `date` - Parse ISO date string
+- `Date:fromTimeString(timeStr)` → `datetime` - Parse datetime string
+- `Date:fromISOTimeString(isoStr)` → `datetime` - Parse ISO datetime string
+- `Date:fromUnixTimestamp(timestamp)` → `datetime` - Convert Unix timestamp
+
+**Arithmetic:**
+- `Date:addDays(date, days)` → `date` - Add days
+- `Date:addMonths(date, months)` → `date` - Add months
+- `Date:addSeconds(datetime, seconds)` → `datetime` - Add seconds
+
+**Intervals:**
+- `Date:daysBetween(date1, date2)` → `int` - Days between
+- `Date:monthsBetween(date1, date2)` → `int` - Months between
+- `Date:secondsBetween(datetime1, datetime2)` → `int` - Seconds between
+
+**Extraction:**
+- `Date:extract(datetime, "year"|"month"|"day"|"hour"|"minute"|"second")` → `int` - Extract component
+
+### Math Namespace
+
+- `Math:pow(base, exponent)` → `decimal` - Power
+- `Math:sqrt(value)` → `decimal` - Square root
+- `Math:floor(value)` → `decimal` - Floor
+- `Math:ceil(value)` → `decimal` - Ceiling
+- `Math:round(value, decimals?, mode?)` → `decimal` - Round
+- `Math:random()` → `decimal` - Random 0-1
+
+### Type Conversion Namespace
+
+- `Integer:fromString(str)` → `int` - Parse integer
+- `Decimal:fromString(str)` → `decimal` - Parse decimal
+- `Long:fromString(str)` → `bigint` - Parse long
+- `Uuid:fromString(str)` → `uuid` - Parse UUID
+- `Blob:fromString(base64Str)` → `blob` - Parse blob from Base64
+- `Blob:wrapFromString(base64Str, fileName, mimeType)` → `blob` - Wrap blob with metadata
+- `Blob:toString(blob)` → `string` - Convert blob to Base64
+
+### JSON Namespace
+
+- `Json:fromCsvLine(csvLine, headers)` → `json` - Parse CSV line
+- `Json:fromCsv(csvData)` → `jsonarray` - Parse CSV
+
+### Helium Namespace
+
+- `Helium:platform()` → `string` - Get platform identifier
+
+### SQL Namespace
+
+- `sql:query(query, param1, param2, ...)` → `Object[]` - Execute SELECT query
+- `sql:execute(query, param1, param2, ...)` - Execute INSERT/UPDATE/DELETE
+
+### API Namespace
+
+**Expressions:**
+- `api:get(url)` → `json` - HTTP GET
+- `api:post(url)` → `json` - HTTP POST
+- `api:put(url)` → `json` - HTTP PUT
+- `api:delete(url)` → `json` - HTTP DELETE
+
+**Statements:**
+- `api:setStatusCode(code)` - Set HTTP status code
+
+### Persistence BIFs
+
+**Object Creation:**
+- `ObjectName:new()` → `ObjectName` - Create new instance
+- `ObjectName:fromCsv(csvData)` → `ObjectName[]` - Create from CSV
+- `ObjectName:fromCsvLine(csvLine, headers)` → `ObjectName` - Create from CSV line
+
+**Object Retrieval:**
+- `ObjectName:read(uuid)` → `ObjectName` - Read by UUID
+- `ObjectName:all()` → `ObjectName[]` - Get all objects
+- `ObjectName:user()` → `ObjectName` - Get current user (for @Role objects)
+
+**Object Deletion:**
+- `ObjectName:delete(uuid)` - Delete object
+
+**Selectors (attributes without quotes):**
+- `ObjectName:equals(attribute, value)` → `ObjectName[]`
+- `ObjectName:notEquals(attribute, value)` → `ObjectName[]`
+- `ObjectName:empty(attribute)` → `ObjectName[]`
+- `ObjectName:notEmpty(attribute)` → `ObjectName[]`
+- `ObjectName:lessThan(attribute, value)` → `ObjectName[]` (int/decimal only)
+- `ObjectName:lessThanOrEqual(attribute, value)` → `ObjectName[]` (int/decimal only)
+- `ObjectName:greaterThan(attribute, value)` → `ObjectName[]` (int/decimal only)
+- `ObjectName:greaterOrEqual(attribute, value)` → `ObjectName[]` (int/decimal only)
+- `ObjectName:notLessOrEqual(attribute, value)` → `ObjectName[]`
+- `ObjectName:notGreaterOr(attribute, value)` → `ObjectName[]`
+- `ObjectName:between(attribute, start, end)` → `ObjectName[]`
+- `ObjectName:notBetween(attribute, start, end)` → `ObjectName[]`
+- `ObjectName:contains(attribute, value)` → `ObjectName[]`
+- `ObjectName:notContains(attribute, value)` → `ObjectName[]`
+- `ObjectName:beginsWith(attribute, value)` → `ObjectName[]`
+- `ObjectName:notBeginsWith(attribute, value)` → `ObjectName[]`
+- `ObjectName:endsWith(attribute, value)` → `ObjectName[]`
+- `ObjectName:notEndsWith(attribute, value)` → `ObjectName[]`
+- `ObjectName:attributeIn(attribute, collection)` → `ObjectName[]`
+- `ObjectName:notAttributeIn(attribute, collection)` → `ObjectName[]`
+- `ObjectName:relationshipIn(relationship, object)` → `ObjectName[]`
+- `ObjectName:notRelationshipIn(relationship, object)` → `ObjectName[]`
+
+**Complex Selectors:**
+- `ObjectName:and(selector1, selector2, ...)` → `ObjectName[]` - AND combination
+- `ObjectName:union(selector1, selector2, ...)` → `ObjectName[]` - Union
+- `ObjectName:intersect(selector1, selector2, ...)` → `ObjectName[]` - Intersection
+- `ObjectName:diff(selector1, selector2, ...)` → `ObjectName[]` - Difference
+
+**Rules:**
+- Cannot compound selectors - use separate statements
+- Use `relationshipIn()`/`notRelationshipIn()` for relationships, not `equals()`
+- Comparison selectors (`lessThan`, etc.) only work with `int` and `decimal` attributes
+- Use `between()` for `date` and `datetime` attributes
+
+### Collection BIFs
+
+**Access:**
+- `collection.pop()` → `Type` - Remove and return last element
+- `collection.drop()` → `Type` - Remove and return first element
+- `collection.length()` → `int` - Get length
+- `collection.first()` → `Type` - Get first element
+- `collection.last()` → `Type` - Get last element
+- `collection.get(index)` → `Type` - Get element at index
+
+**Modification:**
+- `collection.append(element)` - Add to end
+- `collection.prepend(element)` - Add to beginning
+- `collection.add(index, element)` - Insert at index
+- `collection.remove(index)` - Remove at index
+- `collection.clear()` - Remove all elements
+
+**Sorting:**
+- `collection.sortAsc(attributeName?)` - Sort ascending
+- `collection.sortDesc(attributeName?)` - Sort descending
+
+**Selection:**
+- `collection.select(selectorBIF)` → `Type[]` - Filter collection
+
+**Other:**
+- `collection.notify(descKey, smsKey, emailSubjKey, emailBodyKey)` - Send notifications
+
+**Rules:**
+- Collection BIFs cannot be chained to Selector BIFs - use separate statements
+
+### Instance BIFs (Object Methods)
+
+**Collections:**
+- `object.clear()` - Clear collection
+- `object.append(element)` - Append to collection
+- `object.prepend(element)` - Prepend to collection
+- `object.sortAsc(attributeName?)` - Sort collection ascending
+- `object.sortDesc(attributeName?)` - Sort collection descending
+- `object.add(index, element)` - Add at index
+- `object.remove(element)` - Remove element
+
+**Notifications:**
+- `object.notify(descKey, smsKey, emailSubjKey, emailBodyKey)` - Send notification
+
+**Roles:**
+- `object.removeRole()` - Remove role
+- `object.forcePasswordReset()` - Force password reset
+
+**Invitations:**
+- `object.invite(email, role?)` - Invite user
+
+**Payments:**
+- `object.pay(amount, currency, description)` - Payment
+- `object.payWithRef(amount, currency, description, reference, metadata)` - Payment with reference
+
+### JSON BIFs (Instance Methods)
+
+**Access:**
+- `jsonObject.jsonGet(key)` → `string|json|jsonarray` - Get value
+- `jsonObject.jsonGet(key1).jsonGet(key2)` - Nested access
+- `jsonObject.jsonContains(key)` → `bool` - Check if key exists
+- `jsonObject.jsonKeys()` → `string[]` - Get all keys
+
+**Modification:**
+- `jsonObject.jsonPut(key, value)` - Set value (statement)
+- `jsonObject.jsonRemove(key)` - Remove key (statement)
+
+**Initialization:**
+```mez
+json obj = "{}";
+jsonarray arr = "[]";
+```
+
+**Conversion:**
+```mez
+json[] array = jsonArray;  // jsonarray to json[]
+jsonarray arr = array;     // json[] to jsonarray
+```
+
+### Assert BIFs
+
+**Syntax:**
+```mez
+Assert:isEqual(actual, expected, message);
+Assert:isNotEqual(actual, expected, message);
+Assert:isTrue(condition, message);
+Assert:isFalse(condition, message);
+Assert:isNull(value, message);
+Assert:isNotNull(value, message);
+Assert:isGreater(actual, expected, message);
+Assert:isGreaterOrEqual(actual, expected, message);
+Assert:isLess(actual, expected, message);
+Assert:isLessOrEqual(actual, expected, message);
+Assert:isBoth(condition1, condition2, message);
+Assert:isEither(condition1, condition2, message);
+```
+
+---
+
+## Operators
+
+### Arithmetic
+- `+` - Addition
+- `-` - Subtraction
+- `*` - Multiplication
+- `/` - Division
+- `%` - Modulo
+- `++` - Increment (postfix: `var++`)
+- `--` - Decrement (postfix: `var--`)
+
+**Note:** `+=` and `-=` are NOT supported. Use `i = i + 1` instead.
+
+### Comparison
+- `==` - Equal
+- `!=` - Not equal
+- `<` - Less than
+- `<=` - Less than or equal
+- `>` - Greater than
+- `>=` - Greater than or equal
+
+### Logical
+- `&&` - AND
+- `||` - OR
+
+**Note:** `!` (NOT) is NOT supported. Use `== false` instead.
+
+### Assignment
+- `=` - Assignment
+
+### Array/Collection
+- `[]` - Array/collection type declaration
+
+---
+
+## Null Checks
+
+```mez
+if (attribute == null) {
+    // handle null
+}
+
+if (attribute != null) {
+    // handle not null
+}
+```
+
+---
+
+## Blob Type
+
+**Metadata Properties:**
+For blob field `document`, automatically available:
+- `document_fname__` - File name
+- `document_mtype__` - MIME type
+- `document_size__` - File size in bytes
+
+**BIFs:**
+- `Blob:fromString(base64Str)` → `blob` - Create from Base64
+- `Blob:wrapFromString(base64Str, fileName, mimeType)` → `blob` - Wrap with metadata
+- `Blob:toString(blob)` → `string` - Convert to Base64
+
+---
+
+## View Files (.vxml)
+
+### XML Structure
+
+**Header (always required):**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ui xmlns="http://uiprogram.mezzanine.com/View"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://uiprogram.mezzanine.com/View View.xsd">
+```
+
+**View Element:**
+```xml
+<view label="view_heading.key" unit="UnitName" init="initializeFunction">
+    <!-- child elements -->
+</view>
+```
+
+### Child Elements
+
+Allowed: `checkbox`, `datefield`, `fileupload`, `select`, `textarea`, `textfield`, `invite`, `code`, `filebrowser`, `gallery`, `info`, `map`, `table`, `wall`, `raw`, `menuitem`
+
+### Bindings
+
+**Variable Binding:**
+```xml
+<binding variable="UnitName:variableName" />
+<binding variable="objectName">
+    <attribute name="attribute_name"/>
+</binding>
+```
+
+**Function Binding:**
+```xml
+<binding function="functionName" />
+```
+
+### Common Elements
+
+**Info:**
+```xml
+<info label="info.key" value="info.template_key"/>
+<info label="info.key">
+    <binding function="getValue"/>
+</info>
+<info label="info.key">
+    <binding variable="objectName">
+        <attribute name="attribute_name"/>
+    </binding>
+</info>
+```
+
+**Textfield:**
+```xml
+<textfield label="textfield.key" datatype="text|number|password|tel|email|url">
+    <binding variable="objectName">
+        <attribute name="attribute_name"/>
+    </binding>
+</textfield>
+```
+
+**Textarea:**
+```xml
+<textarea label="textarea.key">
+    <binding variable="objectName">
+        <attribute name="attribute_name"/>
+    </binding>
+</textarea>
+```
+
+**Select (Enum):**
+```xml
+<select label="select.key">
+    <binding variable="objectName">
+        <attribute name="attribute_name"/>
+    </binding>
+    <enum>ENUM_NAME</enum>
+</select>
+```
+
+**Select (Collection):**
+```xml
+<select label="select.key">
+    <binding variable="selectedItem"/>
+    <collectionSource function="getCollection">
+        <displayAttribute name="attr1"/>
+        <displayAttribute name="attr2"/>
+    </collectionSource>
+</select>
+```
+
+**Table:**
+```xml
+<table title="table_heading.key">
+    <collectionSource variable="UnitName:collection"/>
+    <!-- or -->
+    <collectionSource function="UnitName:getCollection"/>
+    <column heading="column_heading.key">
+        <attributeName>attribute_name</attributeName>
+    </column>
+    <rowAction label="button.key" action="actionFunction">
+        <binding variable="rowItem"/>
+    </rowAction>
+</table>
+```
+
+**RowAction:**
+```xml
+<rowAction label="button.key" action="actionFunction">
+    <binding variable="rowItem"/>
+    <confirm subject="confirm_subject.key" body="confirm_body.key"/>
+    <visible function="showAction"/>
+</rowAction>
+```
+
+**Visible Element:**
+```xml
+<visible function="shouldShow"/>
+<!-- or -->
+<visible variable="UnitName:booleanVariable"/>
+```
+
+**Rules:**
+- `visible` should be first element (except for `rowAction` where it's last)
+- Bound to boolean variable or function returning boolean
+- Default is visible if not specified
+
+### Menu Items
+
+```xml
+<menuitem label="menu_item.key" icon="IconName" order="0">
+    <userRole>Role Name</userRole>
+</menuitem>
+```
+
+**Icons:**
+- PNG format, 40x30 pixels, transparent background
+- Stored in `web-app/images/`
+
+### Language File
+
+**Format:** INI format (`web-app/lang/en.lang`)
+
+**Rules:**
+- Every `label` attribute must have entry
+- No duplicate keys (before `=`)
+- Interpolation: `key=Text {UnitName:variable} More Text`
+
+**Example:**
+```ini
+view_heading.home=Home
+info.welcome=Welcome {HomePage:firstName} {HomePage:lastName}
+button.save=Save
+```
+
+---
+
+## SQL
+
+### Execution
+
+```mez
+ObjectName[] results = sql:query("SELECT * FROM table WHERE id = $1", param1);
+sql:execute("UPDATE table SET col = $1 WHERE id = $2", value, id);
+```
+
+### Inserting Data
+
+**Rules:**
+- Must include `_id_` (UUID) and `_tstamp_` (datetime) fields
+- Use `gen_random_uuid()` for `_id_`
+- Use `now()` for `_tstamp_`
+- Foreign keys: relationship name + `_fk` suffix
+
+**Example:**
+```sql
+INSERT INTO person (_id_, _tstamp_, name, age)
+VALUES (gen_random_uuid(), now(), 'John', 30);
+```
+
+---
+
+## Common Patterns
+
+### UUID Generation
+
+```mez
+Dummy dummy = Dummy:new();  // Dummy object with single string attribute
+uuid uuidValue = dummy._id;
+```
+
+### Empty String Check
+
+```mez
+if (str == "") {
+    // empty
+}
+```
+
+### Boolean Check
+
+```mez
+if (boolVar == true) {
+    // true
+}
+if (boolVar == false) {
+    // false - DON'T use !boolVar
+}
+```
+
+### Relationship Access
+
+```mez
+// DON'T: currentCase.case_manager.email_address
+// DO:
+Case_Manager manager = currentCase.case_manager;
+string email = manager.email_address;
+```
+
+### BIF Result Access
+
+```mez
+// DON'T: Person:new()._id
+// DO:
+Person person = Person:new();
+uuid personId = person._id;
+```
+
+### Collection Operations
+
+```mez
+// DON'T: Person:all().first()
+// DO:
+Person[] people = Person:all();
+Person first = people.first();
+```
+
+### Selector Combinations
+
+```mez
+// DON'T: Person:equals(active, true).select(...)
+// DO:
+Person[] activePeople = Person:equals(active, true);
+Person[] filtered = activePeople.select(equals(role, "admin"));
+```
+
+---
+
+## Anti-Patterns (DON'T)
+
+❌ **Variables in else blocks**
+```mez
+if (condition) {
+    int x = 1;
+} else {
+    int x = 2;  // WRONG
+}
+```
+
+❌ **Multiple dot notation**
+```mez
+obj.attr.subattr.method();  // WRONG
+```
+
+❌ **Ternary operator**
+```mez
+int x = condition ? 1 : 2;  // WRONG - not supported
+```
+
+❌ **Compound operators**
+```mez
+i += 1;  // WRONG
+i -= 1;  // WRONG
+```
+
+❌ **Logical NOT**
+```mez
+if (!boolVar) {  // WRONG
+```
+
+❌ **Compound selectors**
+```mez
+Person:equals(active, true).select(...);  // WRONG
+```
+
+❌ **Random variable name**
+```mez
+int random = 5;  // WRONG - reserved word
+```
+
+❌ **Direct BIF attribute access**
+```mez
+uuid id = Person:new()._id;  // WRONG
+```
+
+❌ **Selector on relationship with equals**
+```mez
+Person:equals(manager, managerObj);  // WRONG - use relationshipIn
+```
+
+---
+
+## Best Practices
+
+✅ **DO:**
+- Declare variables at function/unit scope
+- Extract intermediate variables for dot notation chains
+- Use explicit boolean comparisons
+- Use separate statements for complex operations
+- Use `relationshipIn()` for relationship queries
+- Use `between()` for date comparisons
+- Assign BIF results before accessing attributes
+- Use translation keys for all user-facing text
+- Validate all inputs with validators
+- Use appropriate BIF namespaces
+
+✅ **Code Organization:**
+- One object/enum per `.mez` file in `model/`
+- Validators in `model/validators/`
+- Presenters in `web-app/presenters/`
+- Views in `web-app/views/`
+- Services in `services/`
+
+✅ **Error Handling:**
+- Use try/catch for operations that may fail
+- Use assertions for test cases
+- Log errors with `Mez:error()`
+- Show user-friendly messages with `Mez:alertError()`
+
+---
+
+## Reserved Words
+
+- `random` - Use `randomNumber` or similar instead
+- All primitive types (`int`, `string`, `bool`, etc.)
+- All control flow keywords (`if`, `else`, `for`, `foreach`, `try`, `catch`, `finally`, `return`, `throw`)
+- All object keywords (`object`, `persistent`, `unit`, `enum`, `validator`)
+- All trigger keywords (`beforeCreate`, `afterCreate`, etc.)
+
+---
+
+## Notes
+
+- All methods are call-by-value (not by reference)
+- Arguments are not modified by function calls
+- Collections are mutable (modify in place)
+- Objects passed to functions are references (modified in place)
+- String operations return new strings (immutable)
+- Date operations return new dates (immutable)
+

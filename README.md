@@ -192,6 +192,96 @@ This tooling is designed to be fully automated and repeatable:
 3. The build pipeline can be re-run any time the DSL changes
 4. Version checking tracks changes to source files
 
+## Packaging and Publishing
+
+### Prerequisites for Publishing
+
+Before publishing the extension to [Open VSX Registry](https://open-vsx.org/), you need:
+
+1. **Open VSX Account**: Create an account at https://open-vsx.org/ if you haven't already
+2. **Install ovsx**: Install the Open VSX CLI tool globally:
+   ```bash
+   npm install -g ovsx
+   ```
+
+### Packaging the Extension
+
+To create a `.vsix` package file:
+
+```bash
+# From the root directory
+npm run package
+```
+
+This will:
+1. Build all prerequisites (grammar, parser, rules, BIFs)
+2. Build the language server
+3. Bundle the language server and generated files into the extension
+4. Build the extension
+5. Create a `.vsix` file in `helium-dsl-vscode/`
+
+The generated `.vsix` file can be installed manually or published to a marketplace.
+
+### Installing Locally
+
+To test the extension before publishing:
+
+```bash
+# Install from the .vsix file
+code --install-extension helium-dsl-vscode-0.1.0.vsix
+
+# Or use the full path
+code --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.0.vsix
+```
+
+### Publishing to Open VSX Registry
+
+1. **Get your access token**:
+   - Log in to your account at https://open-vsx.org/
+   - Go to your account settings
+   - Generate an access token
+
+2. **Publish the extension**:
+   ```bash
+   cd helium-dsl-vscode
+   ovsx publish -p <your-access-token>
+   ```
+
+   Or set the token as an environment variable for convenience:
+   ```bash
+   export OVSX_PAT=<your-access-token>
+   cd helium-dsl-vscode
+   ovsx publish
+   ```
+
+   To publish a specific version:
+   ```bash
+   ovsx publish -p <your-access-token> --packagePath helium-dsl-vscode-<version>.vsix
+   ```
+
+3. **Verify**: Check the [Open VSX Registry](https://open-vsx.org/) for your extension. It should appear shortly after publishing.
+
+### Manual Distribution
+
+You can also distribute the `.vsix` file manually:
+- Share it directly with users
+- Host it on your website
+- Include it in your project repository
+
+Users can install it using:
+```bash
+code --install-extension <path-to-vsix-file>
+```
+
+### Extension Structure
+
+When packaged, the extension includes:
+- `out/` - Compiled extension code
+- `server/out/` - Bundled language server
+- `generated/` - Required generated files (parser, BIF metadata, rules)
+- `syntaxes/` - TextMate grammar for syntax highlighting
+- `language-configuration.json` - Language configuration
+
 ## Contributing
 
 When the Helium DSL is updated:
