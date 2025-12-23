@@ -3,6 +3,11 @@
   "displayName": "Helium DSL",
   "version": "0.1.0",
   "publisher": "mezzanineware",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mezzanineware/helium-vscode-tooling.git"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
