@@ -68,7 +68,11 @@ This will:
 7. Generate TextMate grammar for syntax highlighting
 8. Build the language server
 9. Build the VSCode extension
-10. Run validation tests against your sample project
+10. Update extension version with epoch-based build number
+11. Package the VSCode extension as a `.vsix` file
+12. Restore original version in package.json
+13. Run validation tests against your sample project
+14. Automatically install the extension in Cursor
 
 ### Manual Build Steps
 
@@ -191,6 +195,8 @@ This tooling is designed to be fully automated and repeatable:
 2. Generated files are in `generated/` (gitignored)
 3. The build pipeline can be re-run any time the DSL changes
 4. Version checking tracks changes to source files
+5. Each build automatically gets a unique version number based on the epoch timestamp
+6. The extension is automatically installed in Cursor after successful packaging (when using `validate-dsl.sh`)
 
 ## Packaging and Publishing
 
@@ -213,26 +219,46 @@ To create a `.vsix` package file:
 npm run package
 ```
 
+Or use the validation script which includes packaging:
+
+```bash
+./validate-dsl.sh -d <dsl-commons-path> -p <sample-project-path>
+```
+
 This will:
 1. Build all prerequisites (grammar, parser, rules, BIFs)
 2. Build the language server
 3. Bundle the language server and generated files into the extension
 4. Build the extension
-5. Create a `.vsix` file in `helium-dsl-vscode/`
+5. Update the version to include epoch-based build number (e.g., `0.1.1735689600`)
+6. Create a `.vsix` file in `helium-dsl-vscode/`
+7. Restore the original version in package.json
+8. Automatically install in Cursor (when using `validate-dsl.sh`)
 
-The generated `.vsix` file can be installed manually or published to a marketplace.
+The generated `.vsix` file will have a unique version based on the build timestamp, ensuring each build is uniquely identifiable. The file can be installed manually or published to a marketplace.
 
 ### Installing Locally
 
-To test the extension before publishing:
+The `validate-dsl.sh` script automatically installs the extension in Cursor after packaging. The extension version is automatically set to use the current epoch timestamp as the build number (e.g., `0.1.1735689600`) to ensure each build has a unique version.
 
+To manually install the extension:
+
+**For Cursor:**
+```bash
+# Install from the .vsix file (the version will include the epoch timestamp)
+cursor --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.<epoch>.vsix --force
+```
+
+**For VSCode:**
 ```bash
 # Install from the .vsix file
-code --install-extension helium-dsl-vscode-0.1.0.vsix
+code --install-extension helium-dsl-vscode-0.1.<epoch>.vsix
 
 # Or use the full path
-code --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.0.vsix
+code --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.<epoch>.vsix
 ```
+
+Note: The actual VSIX filename will include the epoch timestamp (Unix timestamp in seconds) as the build number, ensuring each build has a unique version identifier.
 
 ### Publishing to Open VSX Registry
 

@@ -105,6 +105,8 @@ async function main() {
         filter: createPathFilter(sourceNodeModules)
       }
     );
+    // Remove any nested node_modules that might have been copied
+    await removeNestedNodeModules(destNodeModules);
   }
   // Copy package.json for dependency resolution
   if (await fs.pathExists(serverPackageJson)) {
@@ -167,15 +169,178 @@ async function main() {
     );
   }
 
-  // 5. Build the extension itself
+  // 5. Clean extension node_modules completely to remove any symlinks from npm workspaces
+  // This ensures we start with a clean slate and can copy actual files
+  console.log("Cleaning extension node_modules to remove workspace symlinks...");
+  const extensionNodeModules = path.resolve(extensionRoot, "node_modules");
+  const workspaceNodeModules = path.resolve(workspaceRoot, "node_modules");
+  
+  // Remove the entire extension node_modules directory if it exists
+  // This removes any symlinks that npm workspaces might have created
+  if (await fs.pathExists(extensionNodeModules)) {
+    console.log("Removing extension node_modules directory...");
+    await fs.remove(extensionNodeModules);
+  }
+  
+  // Ensure extension dependencies are available
+  // This is critical for vsce to bundle vscode-languageclient
+  console.log("Ensuring extension dependencies are available...");
+  
+  /**
+   * Filter function for copying npm packages that excludes nested node_modules directories
+   * This prevents copying nested dependencies that would cause duplicate file errors in vsce
+   * 
+   * The filter properly identifies nested node_modules by checking path segments,
+   * ensuring we only exclude node_modules that are inside the package being copied.
+   */
+  function createPackageFilterWithoutNestedNodeModules(sourceDir) {
+    const sourceAbsolute = path.resolve(sourceDir);
+    
+    return (src) => {
+      // First apply standard path filter
+      if (!createPathFilter(sourceDir)(src)) {
+        return false;
+      }
+      
+      // Get relative path from package root
+      const relativePath = path.relative(sourceAbsolute, src);
+      
+      // If no relative path or it goes outside, reject (shouldn't happen due to path filter)
+      if (!relativePath || relativePath.startsWith("..")) {
+        return false;
+      }
+      
+      // Exclude if path contains a nested node_modules directory
+      // Pattern: anything/node_modules/anything (but not the package root itself)
+      const pathParts = relativePath.split(path.sep);
+      let foundNestedNodeModules = false;
+      
+      for (let i = 0; i < pathParts.length; i++) {
+        if (pathParts[i] === 'node_modules' && i > 0) {
+          // Found a node_modules that's not at the root - it's nested
+          foundNestedNodeModules = true;
+          break;
+        }
+      }
+      
+      return !foundNestedNodeModules;
+    };
+  }
+
+  /**
+   * Recursively removes all nested node_modules directories from a directory tree
+   * This ensures no nested dependencies are included in the packaged extension
+   */
+  async function removeNestedNodeModules(dir) {
+    // Skip if directory doesn't exist
+    if (!await fs.pathExists(dir)) {
+      return;
+    }
+    
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules') {
+            // This is a nested node_modules - remove it
+            console.log(`Removing nested node_modules: ${path.relative(extensionRoot, fullPath)}`);
+            await fs.remove(fullPath);
+          } else {
+            // Recurse into other directories
+            await removeNestedNodeModules(fullPath);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore errors for individual directories (e.g., if directory was deleted)
+      // Only warn if it's not a "not found" error
+      if (!e.message.includes('ENOENT') && !e.message.includes('no such file')) {
+        console.warn(`Warning: Could not process directory ${dir}:`, e.message);
+      }
+    }
+  }
+  
+  // Check if vscode-languageclient exists in workspace root (npm workspaces)
+  const vscodeLanguageClientWorkspace = path.resolve(workspaceNodeModules, "vscode-languageclient");
+  const vscodeLanguageClientExtension = path.resolve(extensionNodeModules, "vscode-languageclient");
+  
+  // Check if target exists and is a symlink (npm workspaces creates symlinks)
+  let needsVscodeLanguageClientCopy = true;
+  if (await fs.pathExists(vscodeLanguageClientExtension)) {
+    const stats = await fs.lstat(vscodeLanguageClientExtension);
+    if (stats.isSymbolicLink()) {
+      console.log("Removing symlink to workspace vscode-languageclient...");
+      await fs.remove(vscodeLanguageClientExtension);
+      needsVscodeLanguageClientCopy = true;
+    } else {
+      // Already exists as actual files, skip copy
+      needsVscodeLanguageClientCopy = false;
+    }
+  }
+  
+  if (needsVscodeLanguageClientCopy && await fs.pathExists(vscodeLanguageClientWorkspace)) {
+    console.log("Copying vscode-languageclient from workspace to extension...");
+    await fs.ensureDir(extensionNodeModules);
+    await fs.copy(
+      vscodeLanguageClientWorkspace,
+      vscodeLanguageClientExtension,
+      {
+        overwrite: true,
+        dereference: true,
+        filter: createPackageFilterWithoutNestedNodeModules(vscodeLanguageClientWorkspace)
+      }
+    );
+    // Remove any nested node_modules that might have been copied despite the filter
+    await removeNestedNodeModules(vscodeLanguageClientExtension);
+  } else if (!await fs.pathExists(vscodeLanguageClientExtension)) {
+    console.warn("Warning: vscode-languageclient not found. Extension may fail to activate.");
+  }
+  
+  // Also copy vscode-languageserver-textdocument if it exists (dependency of vscode-languageclient)
+  const vscodeLanguageserverTextdocumentWorkspace = path.resolve(workspaceNodeModules, "vscode-languageserver-textdocument");
+  const vscodeLanguageserverTextdocumentExtension = path.resolve(extensionNodeModules, "vscode-languageserver-textdocument");
+  
+  // Check if target exists and is a symlink
+  let needsVscodeLanguageserverTextdocumentCopy = true;
+  if (await fs.pathExists(vscodeLanguageserverTextdocumentExtension)) {
+    const stats = await fs.lstat(vscodeLanguageserverTextdocumentExtension);
+    if (stats.isSymbolicLink()) {
+      console.log("Removing symlink to workspace vscode-languageserver-textdocument...");
+      await fs.remove(vscodeLanguageserverTextdocumentExtension);
+      needsVscodeLanguageserverTextdocumentCopy = true;
+    } else {
+      // Already exists as actual files, skip copy
+      needsVscodeLanguageserverTextdocumentCopy = false;
+    }
+  }
+  
+  if (needsVscodeLanguageserverTextdocumentCopy && await fs.pathExists(vscodeLanguageserverTextdocumentWorkspace)) {
+    await fs.copy(
+      vscodeLanguageserverTextdocumentWorkspace,
+      vscodeLanguageserverTextdocumentExtension,
+      {
+        overwrite: true,
+        dereference: true,
+        filter: createPackageFilterWithoutNestedNodeModules(vscodeLanguageserverTextdocumentWorkspace)
+      }
+    );
+    // Remove any nested node_modules that might have been copied despite the filter
+    await removeNestedNodeModules(vscodeLanguageserverTextdocumentExtension);
+  }
+
+  // 6. Build the extension itself
   console.log("Building extension...");
   execSync("npm run build", {
     cwd: extensionRoot,
     stdio: "inherit",
   });
 
-  // 6. Remove any symlinks pointing outside extension directory and replace with copies
-  console.log("Removing external symlinks...");
+  // 7. Remove ALL symlinks in extension directory (especially in node_modules)
+  // vsce will follow symlinks and include files from workspace, causing duplicates
+  console.log("Removing all symlinks in extension directory...");
   const { readdir, lstat, readlink, unlink } = require("fs").promises;
   const walkDir = async (dir) => {
     try {
@@ -189,26 +354,31 @@ async function main() {
             const resolved = path.resolve(path.dirname(fullPath), target);
             const normalizedResolved = path.normalize(resolved);
             
-            // Check if symlink points outside extension directory
+            // Remove ALL symlinks, especially those pointing to workspace
+            // This prevents vsce from following symlinks and including duplicate files
+            console.log(`Removing symlink: ${path.relative(extensionRoot, fullPath)} -> ${path.relative(extensionRoot, resolved)}`);
+            await unlink(fullPath);
+            
+            // If symlink points outside extension directory, copy the target
             if (!normalizedResolved.startsWith(extensionRoot + path.sep) && normalizedResolved !== extensionRoot) {
-              console.log(`Removing external symlink: ${path.relative(extensionRoot, fullPath)} -> ${path.relative(extensionRoot, resolved)}`);
-              await unlink(fullPath);
-              // If target exists and is a file/directory, copy it
               try {
                 const targetStats = await fs.lstat(resolved);
                 if (targetStats.isDirectory()) {
-                  await fs.copy(resolved, fullPath, { dereference: true, filter: createPathFilter(extensionRoot) });
+                  await fs.copy(resolved, fullPath, { 
+                    dereference: true, 
+                    filter: createPathFilter(extensionRoot),
+                    overwrite: true
+                  });
                 } else if (targetStats.isFile()) {
-                  await fs.copy(resolved, fullPath, { dereference: true });
+                  await fs.copy(resolved, fullPath, { dereference: true, overwrite: true });
                 }
               } catch (e) {
                 // Target doesn't exist or can't be copied, just remove the symlink
                 console.warn(`  Could not copy target: ${e.message}`);
               }
-            } else if (stats.isDirectory()) {
-              await walkDir(fullPath);
             }
           } else if (stats.isDirectory()) {
+            // Recurse into directories
             await walkDir(fullPath);
           }
         } catch (e) {
@@ -220,6 +390,12 @@ async function main() {
     }
   };
   await walkDir(extensionRoot);
+  
+  // Double-check: Remove any remaining symlinks in node_modules specifically
+  if (await fs.pathExists(extensionNodeModules)) {
+    console.log("Double-checking for remaining symlinks in node_modules...");
+    await walkDir(extensionNodeModules);
+  }
 
   console.log("Prepublish complete!");
 }

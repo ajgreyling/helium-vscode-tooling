@@ -1,5 +1,7 @@
-# Exclude parent directory files
+# Exclude parent directory files (including workspace node_modules)
 ../**
+# Explicitly exclude workspace node_modules to prevent vsce from following symlinks
+../node_modules/**
 
 # Exclude source files
 src/**
@@ -12,8 +14,11 @@ scripts/**
 .gitignore
 .cursorrules
 
-# Exclude node modules (should be bundled or copied separately)
-node_modules/**
+# Include node_modules for extension dependencies (vscode-languageclient)
+# node_modules/** is commented out to allow vsce to include dependencies
+# node_modules/**
+# Exclude nested node_modules directories to prevent duplicate file errors
+**/node_modules/*/node_modules/**
 
 # Exclude build artifacts
 *.vsix

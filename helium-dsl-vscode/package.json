@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium DSL",
-  "version": "0.1.0",
+  "version": "0.1.1767805091",
   "publisher": "mezzanineware",
   "repository": {
     "type": "git",
@@ -25,13 +25,23 @@
       "properties": {
         "heliumDsl.lint.noVarInElse": {
           "type": "string",
-          "enum": ["error", "warning", "info", "off"],
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "off"
+          ],
           "default": "error",
           "description": "Variables cannot be declared in else blocks."
         },
         "heliumDsl.lint.namingConventions": {
           "type": "string",
-          "enum": ["error", "warning", "info", "off"],
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "off"
+          ],
           "default": "warning",
           "description": "Naming conventions enforcement."
         }
@@ -40,14 +50,24 @@
     "languages": [
       {
         "id": "helium-dsl",
-        "aliases": ["Helium DSL", "helium-dsl"],
-        "extensions": [".mez"],
+        "aliases": [
+          "Helium DSL",
+          "helium-dsl"
+        ],
+        "extensions": [
+          ".mez"
+        ],
         "configuration": "./language-configuration.json"
       },
       {
         "id": "helium-vxml",
-        "aliases": ["Helium VXML", "helium-vxml"],
-        "extensions": [".vxml"]
+        "aliases": [
+          "Helium VXML",
+          "helium-vxml"
+        ],
+        "extensions": [
+          ".vxml"
+        ]
       }
     ],
     "grammars": [
@@ -77,4 +97,3 @@
     "vscode-languageclient": "^9.0.1"
   }
 }
-

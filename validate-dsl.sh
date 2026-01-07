@@ -430,14 +430,70 @@ cd "$SCRIPT_DIR/helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 10: Package VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+PACKAGE_JSON="$SCRIPT_DIR/helium-dsl-vscode/package.json"
+EPOCH=$(date +%s)
+
+# Backup original version
+ORIGINAL_VERSION=$(node -p "require('$PACKAGE_JSON').version")
+
+# Update version to use epoch as build number (format: 0.1.<epoch>)
+NEW_VERSION="0.1.$EPOCH"
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+pkg.version = '$NEW_VERSION';
+fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+"
+
+echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
+
+echo ""
+echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/helium-dsl-vscode"
 npm run package
 
 echo ""
-echo -e "${BLUE}=== Step 11: Run Validation Tests ===${NC}"
+echo -e "${BLUE}=== Step 12: Restore Original Version ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+# Restore original version
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+pkg.version = '$ORIGINAL_VERSION';
+fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+"
+echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
+
+echo ""
+echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
 cd "$SCRIPT_DIR"
 npm test
+
+echo ""
+echo -e "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+
+# Find the most recently created VSIX file (macOS-specific: ls -t sorts by modification time)
+VSIX_FILE=$(ls -t helium-dsl-vscode-*.vsix 2>/dev/null | head -n 1)
+
+if [ -z "$VSIX_FILE" ]; then
+    echo -e "${RED}Error: VSIX file not found${NC}"
+    exit 1
+fi
+
+# Get absolute path to VSIX file
+VSIX_ABSOLUTE_PATH="$SCRIPT_DIR/helium-dsl-vscode/$VSIX_FILE"
+
+echo -e "${BLUE}Installing extension: ${VSIX_ABSOLUTE_PATH}${NC}"
+cursor --install-extension "$VSIX_ABSOLUTE_PATH" --force
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Extension installed successfully${NC}"
+else
+    echo -e "${YELLOW}Warning: Extension installation may have failed${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}=== Pipeline Complete ===${NC}"
@@ -447,8 +503,10 @@ echo -e "${GREEN}✓${NC} Parser generated"
 echo -e "${GREEN}✓${NC} Rules extracted"
 echo -e "${GREEN}✓${NC} Language server built"
 echo -e "${GREEN}✓${NC} VSCode extension built"
+echo -e "${GREEN}✓${NC} Version updated with epoch build number ($EPOCH)"
 echo -e "${GREEN}✓${NC} VSCode extension packaged"
 echo -e "${GREEN}✓${NC} Validation tests run"
+echo -e "${GREEN}✓${NC} Extension installed in Cursor"
 echo ""
 echo -e "Sample project validated: ${BLUE}$SAMPLE_PROJECT_PATH${NC}"
 echo ""
