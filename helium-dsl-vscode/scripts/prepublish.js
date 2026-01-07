@@ -58,9 +58,16 @@ async function main() {
 
   // 1. Build the language server
   console.log("Building language server...");
+  // Ensure workspace node_modules/.bin is in PATH for npm scripts
+  const workspaceNodeModulesBin = path.join(workspaceRoot, "node_modules", ".bin");
+  const originalPath = process.env.PATH || "";
+  const pathEnv = originalPath.includes(workspaceNodeModulesBin) 
+    ? originalPath 
+    : `${workspaceNodeModulesBin}:${originalPath}`;
   execSync("npm run build", {
     cwd: languageServerRoot,
     stdio: "inherit",
+    env: { ...process.env, PATH: pathEnv }
   });
 
   // 2. Clean up server directory before copying to avoid stale symlinks
@@ -169,22 +176,36 @@ async function main() {
     );
   }
 
-  // 5. Clean extension node_modules completely to remove any symlinks from npm workspaces
-  // This ensures we start with a clean slate and can copy actual files
-  console.log("Cleaning extension node_modules to remove workspace symlinks...");
+  // 5. Ensure extension dependencies are available
+  // This is critical for vsce to bundle vscode-languageclient
+  console.log("Ensuring extension dependencies are available...");
   const extensionNodeModules = path.resolve(extensionRoot, "node_modules");
   const workspaceNodeModules = path.resolve(workspaceRoot, "node_modules");
   
-  // Remove the entire extension node_modules directory if it exists
-  // This removes any symlinks that npm workspaces might have created
+  // Clean extension node_modules to remove any workspace symlinks
+  // Then copy actual files to ensure vsce can bundle them
   if (await fs.pathExists(extensionNodeModules)) {
-    console.log("Removing extension node_modules directory...");
-    await fs.remove(extensionNodeModules);
+    console.log("Cleaning extension node_modules to remove workspace symlinks...");
+    // Remove only symlinks, keep actual files
+    const { readdir, lstat, unlink } = require("fs").promises;
+    try {
+      const entries = await readdir(extensionNodeModules, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(extensionNodeModules, entry.name);
+        try {
+          const stats = await lstat(fullPath);
+          if (stats.isSymbolicLink()) {
+            console.log(`Removing symlink: ${entry.name}`);
+            await unlink(fullPath);
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    } catch (e) {
+      // If directory doesn't exist or can't be read, that's fine
+    }
   }
-  
-  // Ensure extension dependencies are available
-  // This is critical for vsce to bundle vscode-languageclient
-  console.log("Ensuring extension dependencies are available...");
   
   /**
    * Filter function for copying npm packages that excludes nested node_modules directories
@@ -205,9 +226,14 @@ async function main() {
       // Get relative path from package root
       const relativePath = path.relative(sourceAbsolute, src);
       
-      // If no relative path or it goes outside, reject (shouldn't happen due to path filter)
-      if (!relativePath || relativePath.startsWith("..")) {
+      // If path goes outside, reject (shouldn't happen due to path filter)
+      if (relativePath.startsWith("..")) {
         return false;
+      }
+      
+      // Empty relative path means this is the root directory - always include it
+      if (!relativePath || relativePath === "") {
+        return true;
       }
       
       // Exclude if path contains a nested node_modules directory
@@ -267,8 +293,9 @@ async function main() {
   const vscodeLanguageClientWorkspace = path.resolve(workspaceNodeModules, "vscode-languageclient");
   const vscodeLanguageClientExtension = path.resolve(extensionNodeModules, "vscode-languageclient");
   
-  // Check if target exists and is a symlink (npm workspaces creates symlinks)
-  let needsVscodeLanguageClientCopy = true;
+  // Check if vscode-languageclient exists and is a symlink (npm workspaces creates symlinks)
+  // If it's a symlink, replace it with actual files
+  let needsVscodeLanguageClientCopy = false;
   if (await fs.pathExists(vscodeLanguageClientExtension)) {
     const stats = await fs.lstat(vscodeLanguageClientExtension);
     if (stats.isSymbolicLink()) {
@@ -276,25 +303,64 @@ async function main() {
       await fs.remove(vscodeLanguageClientExtension);
       needsVscodeLanguageClientCopy = true;
     } else {
-      // Already exists as actual files, skip copy
-      needsVscodeLanguageClientCopy = false;
+      // Already exists as actual files, check if it's complete
+      const nodeFile = path.join(vscodeLanguageClientExtension, "node.js");
+      if (!await fs.pathExists(nodeFile)) {
+        console.log("vscode-languageclient exists but is incomplete, will recopy...");
+        await fs.remove(vscodeLanguageClientExtension);
+        needsVscodeLanguageClientCopy = true;
+      }
     }
+  } else {
+    // Doesn't exist, need to copy
+    needsVscodeLanguageClientCopy = true;
   }
   
   if (needsVscodeLanguageClientCopy && await fs.pathExists(vscodeLanguageClientWorkspace)) {
-    console.log("Copying vscode-languageclient from workspace to extension...");
+    console.log(`Copying vscode-languageclient from ${vscodeLanguageClientWorkspace} to ${vscodeLanguageClientExtension}...`);
     await fs.ensureDir(extensionNodeModules);
-    await fs.copy(
-      vscodeLanguageClientWorkspace,
-      vscodeLanguageClientExtension,
-      {
-        overwrite: true,
-        dereference: true,
-        filter: createPackageFilterWithoutNestedNodeModules(vscodeLanguageClientWorkspace)
+    try {
+      // Use a simpler filter that just excludes nested node_modules
+      const filter = createPackageFilterWithoutNestedNodeModules(vscodeLanguageClientWorkspace);
+      await fs.copy(
+        vscodeLanguageClientWorkspace,
+        vscodeLanguageClientExtension,
+        {
+          overwrite: true,
+          dereference: true,
+          filter: filter
+        }
+      );
+      
+      // Verify the copy was successful before cleaning
+      if (!await fs.pathExists(vscodeLanguageClientExtension)) {
+        console.error("✗ Error: vscode-languageclient directory not found immediately after copy");
+        throw new Error("Copy operation failed - destination directory not created");
       }
-    );
-    // Remove any nested node_modules that might have been copied despite the filter
-    await removeNestedNodeModules(vscodeLanguageClientExtension);
+      
+      // Remove any nested node_modules that might have been copied despite the filter
+      await removeNestedNodeModules(vscodeLanguageClientExtension);
+      
+      // Verify the copy was successful after cleanup
+      const nodeFile = path.join(vscodeLanguageClientExtension, "node.js");
+      if (await fs.pathExists(nodeFile)) {
+        console.log("✓ vscode-languageclient copied successfully");
+      } else {
+        console.warn("⚠ Warning: vscode-languageclient/node.js not found after copy");
+        // List what was actually copied
+        try {
+          const entries = await fs.readdir(vscodeLanguageClientExtension);
+          console.warn(`  Directory exists but contains: ${entries.slice(0, 5).join(', ')}${entries.length > 5 ? '...' : ''}`);
+        } catch (e) {
+          console.warn(`  Could not list directory contents: ${e.message}`);
+        }
+      }
+    } catch (error) {
+      console.error("✗ Error copying vscode-languageclient:", error.message);
+      console.error(`  Source: ${vscodeLanguageClientWorkspace}`);
+      console.error(`  Destination: ${vscodeLanguageClientExtension}`);
+      throw error;
+    }
   } else if (!await fs.pathExists(vscodeLanguageClientExtension)) {
     console.warn("Warning: vscode-languageclient not found. Extension may fail to activate.");
   }
@@ -336,6 +402,7 @@ async function main() {
   execSync("npm run build", {
     cwd: extensionRoot,
     stdio: "inherit",
+    env: { ...process.env, PATH: pathEnv }
   });
 
   // 7. Remove ALL symlinks in extension directory (especially in node_modules)
