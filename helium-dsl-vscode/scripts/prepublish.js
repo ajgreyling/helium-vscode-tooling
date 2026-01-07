@@ -177,34 +177,91 @@ async function main() {
   }
 
   // 5. Ensure extension dependencies are available
-  // This is critical for vsce to bundle vscode-languageclient
+  // This is critical for vsce to bundle vscode-languageclient and pass npm validation
   console.log("Ensuring extension dependencies are available...");
   const extensionNodeModules = path.resolve(extensionRoot, "node_modules");
-  const workspaceNodeModules = path.resolve(workspaceRoot, "node_modules");
   
-  // Clean extension node_modules to remove any workspace symlinks
-  // Then copy actual files to ensure vsce can bundle them
+  // Remove the entire extension node_modules directory to ensure a clean, isolated dependency tree
+  // This prevents workspace symlinks and version conflicts that cause npm validation to fail
   if (await fs.pathExists(extensionNodeModules)) {
-    console.log("Cleaning extension node_modules to remove workspace symlinks...");
-    // Remove only symlinks, keep actual files
-    const { readdir, lstat, unlink } = require("fs").promises;
-    try {
-      const entries = await readdir(extensionNodeModules, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = path.join(extensionNodeModules, entry.name);
-        try {
-          const stats = await lstat(fullPath);
-          if (stats.isSymbolicLink()) {
-            console.log(`Removing symlink: ${entry.name}`);
-            await unlink(fullPath);
+    console.log("Removing extension node_modules to ensure clean dependency installation...");
+    await fs.remove(extensionNodeModules);
+  }
+  
+  // Install dependencies directly in the extension directory (not via workspace)
+  // This creates a fresh, isolated dependency tree that will pass npm validation
+  // Use --ignore-scripts to prevent npm from running lifecycle scripts (including prepublish)
+  // which would cause an infinite loop since we're already in the prepublish script
+  // Note: If workspace is disabled during packaging, --no-workspaces is not needed
+  // but we keep it for safety in case workspace is still active
+  console.log("Installing extension dependencies with npm install --production --ignore-scripts...");
+  try {
+    execSync("npm install --production --legacy-peer-deps --ignore-scripts", {
+      cwd: extensionRoot,
+      stdio: "inherit",
+      env: { ...process.env, npm_config_legacy_peer_deps: "true" }
+    });
+    console.log("✓ Dependencies installed successfully");
+    
+    // Verify that vscode-languageclient and its dependencies are present as actual files (not symlinks)
+    const vscodeLanguageClientPath = path.join(extensionNodeModules, "vscode-languageclient");
+    if (await fs.pathExists(vscodeLanguageClientPath)) {
+      const stats = await fs.lstat(vscodeLanguageClientPath);
+      if (stats.isSymbolicLink()) {
+        console.warn("⚠ Warning: vscode-languageclient is still a symlink after npm install");
+      } else {
+        console.log("✓ vscode-languageclient installed as actual files");
+      }
+      
+      // Verify key dependencies are present
+      const requiredDeps = ["vscode-languageserver-protocol", "minimatch", "semver"];
+      for (const dep of requiredDeps) {
+        const depPath = path.join(extensionNodeModules, dep);
+        if (await fs.pathExists(depPath)) {
+          const depStats = await fs.lstat(depPath);
+          if (depStats.isSymbolicLink()) {
+            console.warn(`⚠ Warning: ${dep} is a symlink`);
+          } else {
+            console.log(`✓ ${dep} installed as actual files`);
           }
-        } catch (e) {
-          // Ignore errors
+        } else {
+          console.warn(`⚠ Warning: ${dep} not found in node_modules`);
         }
       }
-    } catch (e) {
-      // If directory doesn't exist or can't be read, that's fine
+    } else {
+      console.error("✗ Error: vscode-languageclient not found after npm install");
+      throw new Error("vscode-languageclient installation failed");
     }
+    
+    // Before removing nested node_modules, move all dependencies from nested locations to root
+    // This ensures all transitive dependencies are available for npm validation
+    console.log("Moving nested dependencies to root node_modules...");
+    const vscodeLanguageClientNodeModules = path.join(extensionNodeModules, "vscode-languageclient", "node_modules");
+    if (await fs.pathExists(vscodeLanguageClientNodeModules)) {
+      const nestedDeps = await fs.readdir(vscodeLanguageClientNodeModules);
+      for (const dep of nestedDeps) {
+        const nestedPath = path.join(vscodeLanguageClientNodeModules, dep);
+        const rootPath = path.join(extensionNodeModules, dep);
+        
+        // Only move if it doesn't already exist at root
+        if (await fs.pathExists(nestedPath) && !await fs.pathExists(rootPath)) {
+          try {
+            await fs.move(nestedPath, rootPath);
+            console.log(`  ✓ Moved ${dep} to root`);
+          } catch (e) {
+            console.warn(`  ⚠ Could not move ${dep}: ${e.message}`);
+          }
+        }
+      }
+    }
+    
+    // Remove nested node_modules to prevent duplicate file errors in vsce
+    // npm install may create nested node_modules in dependencies
+    console.log("Removing nested node_modules to prevent duplicate file errors...");
+    await removeNestedNodeModules(extensionNodeModules);
+  } catch (error) {
+    console.error("✗ Error installing dependencies:", error.message);
+    throw error;
   }
   
   /**
@@ -289,113 +346,8 @@ async function main() {
     }
   }
   
-  // Check if vscode-languageclient exists in workspace root (npm workspaces)
-  const vscodeLanguageClientWorkspace = path.resolve(workspaceNodeModules, "vscode-languageclient");
-  const vscodeLanguageClientExtension = path.resolve(extensionNodeModules, "vscode-languageclient");
-  
-  // Check if vscode-languageclient exists and is a symlink (npm workspaces creates symlinks)
-  // If it's a symlink, replace it with actual files
-  let needsVscodeLanguageClientCopy = false;
-  if (await fs.pathExists(vscodeLanguageClientExtension)) {
-    const stats = await fs.lstat(vscodeLanguageClientExtension);
-    if (stats.isSymbolicLink()) {
-      console.log("Removing symlink to workspace vscode-languageclient...");
-      await fs.remove(vscodeLanguageClientExtension);
-      needsVscodeLanguageClientCopy = true;
-    } else {
-      // Already exists as actual files, check if it's complete
-      const nodeFile = path.join(vscodeLanguageClientExtension, "node.js");
-      if (!await fs.pathExists(nodeFile)) {
-        console.log("vscode-languageclient exists but is incomplete, will recopy...");
-        await fs.remove(vscodeLanguageClientExtension);
-        needsVscodeLanguageClientCopy = true;
-      }
-    }
-  } else {
-    // Doesn't exist, need to copy
-    needsVscodeLanguageClientCopy = true;
-  }
-  
-  if (needsVscodeLanguageClientCopy && await fs.pathExists(vscodeLanguageClientWorkspace)) {
-    console.log(`Copying vscode-languageclient from ${vscodeLanguageClientWorkspace} to ${vscodeLanguageClientExtension}...`);
-    await fs.ensureDir(extensionNodeModules);
-    try {
-      // Use a simpler filter that just excludes nested node_modules
-      const filter = createPackageFilterWithoutNestedNodeModules(vscodeLanguageClientWorkspace);
-      await fs.copy(
-        vscodeLanguageClientWorkspace,
-        vscodeLanguageClientExtension,
-        {
-          overwrite: true,
-          dereference: true,
-          filter: filter
-        }
-      );
-      
-      // Verify the copy was successful before cleaning
-      if (!await fs.pathExists(vscodeLanguageClientExtension)) {
-        console.error("✗ Error: vscode-languageclient directory not found immediately after copy");
-        throw new Error("Copy operation failed - destination directory not created");
-      }
-      
-      // Remove any nested node_modules that might have been copied despite the filter
-      await removeNestedNodeModules(vscodeLanguageClientExtension);
-      
-      // Verify the copy was successful after cleanup
-      const nodeFile = path.join(vscodeLanguageClientExtension, "node.js");
-      if (await fs.pathExists(nodeFile)) {
-        console.log("✓ vscode-languageclient copied successfully");
-      } else {
-        console.warn("⚠ Warning: vscode-languageclient/node.js not found after copy");
-        // List what was actually copied
-        try {
-          const entries = await fs.readdir(vscodeLanguageClientExtension);
-          console.warn(`  Directory exists but contains: ${entries.slice(0, 5).join(', ')}${entries.length > 5 ? '...' : ''}`);
-        } catch (e) {
-          console.warn(`  Could not list directory contents: ${e.message}`);
-        }
-      }
-    } catch (error) {
-      console.error("✗ Error copying vscode-languageclient:", error.message);
-      console.error(`  Source: ${vscodeLanguageClientWorkspace}`);
-      console.error(`  Destination: ${vscodeLanguageClientExtension}`);
-      throw error;
-    }
-  } else if (!await fs.pathExists(vscodeLanguageClientExtension)) {
-    console.warn("Warning: vscode-languageclient not found. Extension may fail to activate.");
-  }
-  
-  // Also copy vscode-languageserver-textdocument if it exists (dependency of vscode-languageclient)
-  const vscodeLanguageserverTextdocumentWorkspace = path.resolve(workspaceNodeModules, "vscode-languageserver-textdocument");
-  const vscodeLanguageserverTextdocumentExtension = path.resolve(extensionNodeModules, "vscode-languageserver-textdocument");
-  
-  // Check if target exists and is a symlink
-  let needsVscodeLanguageserverTextdocumentCopy = true;
-  if (await fs.pathExists(vscodeLanguageserverTextdocumentExtension)) {
-    const stats = await fs.lstat(vscodeLanguageserverTextdocumentExtension);
-    if (stats.isSymbolicLink()) {
-      console.log("Removing symlink to workspace vscode-languageserver-textdocument...");
-      await fs.remove(vscodeLanguageserverTextdocumentExtension);
-      needsVscodeLanguageserverTextdocumentCopy = true;
-    } else {
-      // Already exists as actual files, skip copy
-      needsVscodeLanguageserverTextdocumentCopy = false;
-    }
-  }
-  
-  if (needsVscodeLanguageserverTextdocumentCopy && await fs.pathExists(vscodeLanguageserverTextdocumentWorkspace)) {
-    await fs.copy(
-      vscodeLanguageserverTextdocumentWorkspace,
-      vscodeLanguageserverTextdocumentExtension,
-      {
-        overwrite: true,
-        dereference: true,
-        filter: createPackageFilterWithoutNestedNodeModules(vscodeLanguageserverTextdocumentWorkspace)
-      }
-    );
-    // Remove any nested node_modules that might have been copied despite the filter
-    await removeNestedNodeModules(vscodeLanguageserverTextdocumentExtension);
-  }
+  // Dependencies are now installed via npm install, so no manual copying is needed
+  // npm install will handle all transitive dependencies automatically
 
   // 6. Build the extension itself
   console.log("Building extension...");

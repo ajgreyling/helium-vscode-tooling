@@ -15,10 +15,9 @@ scripts/**
 .cursorrules
 
 # Include node_modules for extension dependencies (vscode-languageclient)
-# vsce will bundle dependencies from package.json automatically
+# vsce will bundle dependencies from package.json automatically when they are properly installed
 # We only need to exclude nested node_modules to prevent duplicates
-# node_modules/** is commented out to allow vsce to include dependencies
-# node_modules/**
+# DO NOT exclude node_modules/** - vsce needs to include dependencies
 # Exclude nested node_modules directories to prevent duplicate file errors
 **/node_modules/*/node_modules/**
 

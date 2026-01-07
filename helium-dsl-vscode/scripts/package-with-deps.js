@@ -1,18 +1,36 @@
 const { execSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("fs-extra");
-const AdmZip = require("adm-zip");
+const AdmZip = require("adm-zip"); // Only used for verification, not manipulation
 
 const extensionRoot = path.resolve(__dirname, "..");
+const workspaceRoot = path.resolve(extensionRoot, "..");
+const workspacePackageJson = path.join(workspaceRoot, "package.json");
+const workspacePackageJsonBackup = path.join(workspaceRoot, "package.json.workspace");
 
 async function main() {
   console.log("Packaging extension with dependencies...");
   
-  // Package with --no-dependencies to avoid npm validation issues
-  // The prepublish script will copy vscode-languageclient and its dependencies before vsce runs
+  // Temporarily disable workspace to fix npm validation
+  // vsce runs `npm list --production` which fails in workspace contexts due to hoisting
+  let workspaceDisabled = false;
   try {
-    console.log("Running vsce package with --no-dependencies...");
-    execSync("npx @vscode/vsce package --no-yarn --allow-missing-repository --skip-license --no-dependencies", {
+    // Check if workspace package.json exists and has workspaces
+    if (await fs.pathExists(workspacePackageJson)) {
+      const workspacePkg = await fs.readJson(workspacePackageJson);
+      if (workspacePkg.workspaces && workspacePkg.workspaces.length > 0) {
+        console.log("Temporarily disabling workspace to fix npm validation...");
+        // Rename workspace package.json so npm doesn't recognize it as a workspace
+        await fs.move(workspacePackageJson, workspacePackageJsonBackup);
+        workspaceDisabled = true;
+        console.log("✓ Workspace disabled");
+      }
+    }
+    
+    // The prepublish script has already installed all dependencies via npm install --production
+    // Now that workspace is disabled, npm validation should pass
+    console.log("Running vsce package (without --no-dependencies)...");
+    execSync("npx @vscode/vsce package --no-yarn --allow-missing-repository --skip-license", {
       cwd: extensionRoot,
       stdio: "inherit",
     });
@@ -23,30 +41,19 @@ async function main() {
     
     if (!vsixFile) {
       console.error("Error: VSIX file not found after packaging");
+      // Restore workspace before exiting
+      if (workspaceDisabled && await fs.pathExists(workspacePackageJsonBackup)) {
+        await fs.move(workspacePackageJsonBackup, workspacePackageJson);
+        console.log("✓ Workspace restored");
+      }
       process.exit(1);
     }
     
     const vsixPath = path.join(extensionRoot, vsixFile);
     console.log(`\n✓ VSIX created: ${vsixFile}`);
     
-    // Check if vscode-languageclient exists (prepublish should have copied it)
-    const vscodeLanguageClientPath = path.join(extensionRoot, "node_modules", "vscode-languageclient");
-    if (!await fs.pathExists(vscodeLanguageClientPath)) {
-      console.warn("⚠ Warning: vscode-languageclient not found in node_modules after prepublish");
-      console.warn("  The extension may fail to activate. Check prepublish script.");
-      return;
-    }
-    
-    // Also check for dependencies of vscode-languageclient
-    const workspaceNodeModules = path.join(path.resolve(extensionRoot, ".."), "node_modules");
-    const requiredDeps = [
-      "vscode-languageclient",
-      "vscode-languageserver-protocol",
-      "minimatch",
-      "semver"
-    ];
-    
-    // Check if vscode-languageclient and its dependencies are in the VSIX
+    // Verify that vscode-languageclient is in the VSIX
+    // vsce should have included it automatically when dependencies are properly installed
     const zip = new AdmZip(vsixPath);
     const entries = zip.getEntries();
     const hasVscodeLanguageClient = entries.some(e => {
@@ -55,111 +62,52 @@ async function main() {
              name.includes("extension/node_modules/vscode-languageclient/node.js");
     });
     
-    if (!hasVscodeLanguageClient) {
-      console.log("vscode-languageclient not found in VSIX, adding it and its dependencies...");
-      
-      try {
-        // Add vscode-languageclient
-        zip.addLocalFolder(vscodeLanguageClientPath, "extension/node_modules/vscode-languageclient");
-        console.log("  ✓ Added vscode-languageclient");
-        
-        // Add its dependencies from workspace node_modules
-        for (const dep of requiredDeps.slice(1)) { // Skip vscode-languageclient, already added
-          const depPath = path.join(workspaceNodeModules, dep);
-          const depExtensionPath = path.join(extensionRoot, "node_modules", dep);
-          
-          // Try extension node_modules first (might have been copied by prepublish)
-          if (await fs.pathExists(depExtensionPath)) {
-            zip.addLocalFolder(depExtensionPath, `extension/node_modules/${dep}`);
-            console.log(`  ✓ Added ${dep} from extension node_modules`);
-          } else if (await fs.pathExists(depPath)) {
-            zip.addLocalFolder(depPath, `extension/node_modules/${dep}`);
-            console.log(`  ✓ Added ${dep} from workspace node_modules`);
-          } else {
-            console.warn(`  ⚠ Warning: ${dep} not found, extension may fail`);
-          }
-        }
-        
-        zip.writeZip(vsixPath);
-        console.log("✓ All dependencies added to VSIX");
-        
-        // Note: VSCode/Cursor should extract all files from the VSIX during installation
-        // If node_modules is not being extracted, it may be a Cursor-specific issue
-        // The user may need to reload Cursor after installation
-        
-        // Verify vscode-languageclient was added
-        const verifyZip = new AdmZip(vsixPath);
-        const verifyEntries = verifyZip.getEntries();
-        const verifyHasIt = verifyEntries.some(e => {
-          const name = e.entryName;
-          return name === "extension/node_modules/vscode-languageclient/node.js" ||
-                 name.includes("extension/node_modules/vscode-languageclient/node.js");
-        });
-        
-        if (verifyHasIt) {
-          const count = verifyEntries.filter(e => 
-            e.entryName.includes("extension/node_modules/vscode-languageclient")
-          ).length;
-          console.log(`✓ Verified: vscode-languageclient is now in VSIX (${count} files)`);
-          
-          // Verify dependencies
-          for (const dep of requiredDeps.slice(1)) {
-            const hasDep = verifyEntries.some(e => 
-              e.entryName.includes(`extension/node_modules/${dep}/`)
-            );
-            if (hasDep) {
-              const depCount = verifyEntries.filter(e => 
-                e.entryName.includes(`extension/node_modules/${dep}/`)
-              ).length;
-              console.log(`✓ Verified: ${dep} is in VSIX (${depCount} files)`);
-            } else {
-              console.warn(`⚠ Warning: ${dep} not found in VSIX`);
-            }
-          }
-        } else {
-          console.error("✗ Error: Verification failed - vscode-languageclient still not found in VSIX");
-          process.exit(1);
-        }
-      } catch (error) {
-        console.error(`Error adding dependencies: ${error.message}`);
-        throw error;
-      }
-    } else {
+    if (hasVscodeLanguageClient) {
       const count = entries.filter(e => 
         e.entryName.includes("extension/node_modules/vscode-languageclient")
       ).length;
-      console.log(`✓ vscode-languageclient already in VSIX (${count} files)`);
+      console.log(`✓ Verified: vscode-languageclient is in VSIX (${count} files)`);
       
-      // Check if dependencies are also present
-      for (const dep of requiredDeps.slice(1)) {
+      // Check for key dependencies
+      const requiredDeps = ["vscode-languageserver-protocol", "minimatch", "semver"];
+      for (const dep of requiredDeps) {
         const hasDep = entries.some(e => 
           e.entryName.includes(`extension/node_modules/${dep}/`)
         );
-        if (!hasDep) {
-          console.log(`Adding missing dependency: ${dep}...`);
-          const depPath = path.join(workspaceNodeModules, dep);
-          const depExtensionPath = path.join(extensionRoot, "node_modules", dep);
-          
-          if (await fs.pathExists(depExtensionPath)) {
-            zip.addLocalFolder(depExtensionPath, `extension/node_modules/${dep}`);
-            console.log(`  ✓ Added ${dep}`);
-          } else if (await fs.pathExists(depPath)) {
-            zip.addLocalFolder(depPath, `extension/node_modules/${dep}`);
-            console.log(`  ✓ Added ${dep}`);
-          } else {
-            console.warn(`  ⚠ Warning: ${dep} not found`);
-          }
+        if (hasDep) {
+          const depCount = entries.filter(e => 
+            e.entryName.includes(`extension/node_modules/${dep}/`)
+          ).length;
+          console.log(`✓ Verified: ${dep} is in VSIX (${depCount} files)`);
+        } else {
+          console.warn(`⚠ Warning: ${dep} not found in VSIX - may cause runtime errors`);
         }
       }
-      
-      if (entries.length !== zip.getEntries().length) {
-        zip.writeZip(vsixPath);
-        console.log("✓ Updated VSIX with missing dependencies");
+    } else {
+      console.error("✗ Error: vscode-languageclient not found in VSIX");
+      console.error("  This should not happen when dependencies are properly installed");
+      console.error("  Check that prepublish script ran successfully");
+      // Restore workspace before exiting
+      if (workspaceDisabled && await fs.pathExists(workspacePackageJsonBackup)) {
+        await fs.move(workspacePackageJsonBackup, workspacePackageJson);
+        console.log("✓ Workspace restored");
       }
+      process.exit(1);
     }
   } catch (error) {
     console.error("Packaging failed:", error.message);
+    // Restore workspace on error
+    if (workspaceDisabled && await fs.pathExists(workspacePackageJsonBackup)) {
+      await fs.move(workspacePackageJsonBackup, workspacePackageJson);
+      console.log("✓ Workspace restored after error");
+    }
     process.exit(1);
+  } finally {
+    // Always restore workspace package.json
+    if (workspaceDisabled && await fs.pathExists(workspacePackageJsonBackup)) {
+      await fs.move(workspacePackageJsonBackup, workspacePackageJson);
+      console.log("✓ Workspace restored");
+    }
   }
 }
 
