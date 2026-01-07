@@ -417,7 +417,7 @@ npm run build:bifs
 
 echo ""
 echo -e "${BLUE}=== Step 7: Generate TextMate Grammar ===${NC}"
-npm run build:textmate
+SAMPLE_PROJECT_PATH="$SAMPLE_PROJECT_PATH" npm run build:textmate
 
 echo ""
 echo -e "${BLUE}=== Step 8: Build Language Server ===${NC}"
@@ -430,7 +430,12 @@ cd "$SCRIPT_DIR/helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 10: Run Validation Tests ===${NC}"
+echo -e "${BLUE}=== Step 10: Package VSCode Extension ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+npm run package
+
+echo ""
+echo -e "${BLUE}=== Step 11: Run Validation Tests ===${NC}"
 cd "$SCRIPT_DIR"
 npm test
 
@@ -442,6 +447,7 @@ echo -e "${GREEN}✓${NC} Parser generated"
 echo -e "${GREEN}✓${NC} Rules extracted"
 echo -e "${GREEN}✓${NC} Language server built"
 echo -e "${GREEN}✓${NC} VSCode extension built"
+echo -e "${GREEN}✓${NC} VSCode extension packaged"
 echo -e "${GREEN}✓${NC} Validation tests run"
 echo ""
 echo -e "Sample project validated: ${BLUE}$SAMPLE_PROJECT_PATH${NC}"
