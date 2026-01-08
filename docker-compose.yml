@@ -1,0 +1,15 @@
+services:
+  vsix:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.vsix
+    volumes:
+      - ./helium-dsl-vscode:/build/extension:ro
+      - ./helium-dsl-language-server/out:/build/server-out:ro
+      - ./helium-dsl-language-server/node_modules:/build/server-node-modules:ro
+      - ./generated:/build/generated:ro
+      - ./dist:/build/out
+      - ./docker/package.sh:/build/package.sh:ro
+    working_dir: /build
+    command: ["bash", "/build/package.sh"]
+

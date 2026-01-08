@@ -1,3 +1,9 @@
+/**
+ * @deprecated This script is no longer used. VSIX packaging now uses Docker.
+ * See docker/Dockerfile.vsix and docker/package.sh for the new packaging approach.
+ * This file is kept for reference only and may be removed in a future version.
+ */
+
 const path = require("node:path");
 const fs = require("fs-extra");
 const { execSync } = require("node:child_process");

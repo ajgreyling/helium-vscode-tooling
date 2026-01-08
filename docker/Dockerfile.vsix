@@ -1,0 +1,12 @@
+FROM node:20.11.1-bookworm
+
+RUN apt-get update \
+ && apt-get install -y git \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @vscode/vsce@2.26.0
+
+WORKDIR /build
+
+
+

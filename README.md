@@ -20,10 +20,16 @@ helium-vscode-tooling/
 │   ├── generate-textmate.ts  # Generate TextMate grammar
 │   ├── build.ts             # Main build orchestrator
 │   ├── watch.ts             # Watch for changes
-│   └── version-check.ts     # Version tracking
+│   ├── version-check.ts     # Version tracking
+│   └── package-docker.sh    # Docker-based VSIX packaging helper
+├── docker/               # Docker packaging infrastructure
+│   ├── Dockerfile.vsix   # Docker image for VSIX packaging
+│   └── package.sh        # Packaging script (runs inside Docker)
+├── docker-compose.yml    # Docker Compose configuration
 ├── helium-dsl-language-server/  # LSP server implementation
 ├── helium-dsl-vscode/      # VSCode extension client
 ├── generated/              # Generated files (not in git)
+├── dist/                   # VSIX output directory (not in git)
 ├── validate-dsl.sh         # Validation pipeline script
 └── package.json
 ```
@@ -32,6 +38,7 @@ helium-vscode-tooling/
 
 - Node.js >= 18
 - npm or pnpm
+- Docker and Docker Compose (for VSIX packaging)
 - Access to `appexec-dsl-commons` repository
 - Access to a sample DSL project for validation
 
@@ -187,6 +194,14 @@ If tests fail:
 2. Run `npm run build:all` to regenerate everything
 3. Check the test output for specific file issues
 
+### Extension Activation Errors
+
+If the extension fails to activate with "Cannot find module" errors:
+1. Ensure you're using the VSIX from `dist/helium-dsl.vsix` (created by Docker packaging)
+2. Rebuild and repackage: `npm run package`
+3. Reinstall the extension: `cursor --install-extension dist/helium-dsl.vsix --force`
+4. Check Extension Host logs: Command Palette → "Developer: Show Extension Host Log"
+
 ## Automation & Repeatability
 
 This tooling is designed to be fully automated and repeatable:
@@ -199,6 +214,30 @@ This tooling is designed to be fully automated and repeatable:
 6. The extension is automatically installed in Cursor after successful packaging (when using `validate-dsl.sh`)
 
 ## Packaging and Publishing
+
+### Docker-Based VSIX Packaging
+
+The extension uses **Docker-based packaging** to ensure reproducible builds and proper dependency bundling. This approach:
+
+- ✅ Isolates packaging from npm workspace context
+- ✅ Ensures all transitive dependencies are included (e.g., `minimatch`, `semver`, `brace-expansion`)
+- ✅ Provides reproducible builds across different environments
+- ✅ Eliminates workspace hoisting issues
+- ✅ Works correctly in Cursor
+
+**How it works:**
+
+1. Builds the language server and extension on the host
+2. Uses Docker to create an isolated packaging environment
+3. Copies extension, language server, and generated files into Docker
+4. Installs production dependencies in isolation
+5. Flattens nested dependencies to ensure all are included
+6. Packages the VSIX using `vsce`
+
+**Prerequisites for Packaging:**
+
+- Docker and Docker Compose must be installed and running
+- Language server and extension must be built first (handled automatically)
 
 ### Prerequisites for Publishing
 
@@ -219,46 +258,44 @@ To create a `.vsix` package file:
 npm run package
 ```
 
+This will:
+1. Build the language server (if needed)
+2. Build the extension (if needed)
+3. Run Docker-based packaging
+4. Create a `.vsix` file in `dist/helium-dsl.vsix`
+
 Or use the validation script which includes packaging:
 
 ```bash
 ./validate-dsl.sh -d <dsl-commons-path> -p <sample-project-path>
 ```
 
-This will:
-1. Build all prerequisites (grammar, parser, rules, BIFs)
-2. Build the language server
-3. Bundle the language server and generated files into the extension
-4. Build the extension
-5. Update the version to include epoch-based build number (e.g., `0.1.1735689600`)
-6. Create a `.vsix` file in `helium-dsl-vscode/`
-7. Restore the original version in package.json
-8. Automatically install in Cursor (when using `validate-dsl.sh`)
+The packaging process:
+1. Builds all prerequisites (grammar, parser, rules, BIFs)
+2. Builds the language server
+3. Builds the extension
+4. Uses Docker to package the VSIX with all dependencies
+5. Outputs the VSIX to `dist/helium-dsl.vsix`
 
-The generated `.vsix` file will have a unique version based on the build timestamp, ensuring each build is uniquely identifiable. The file can be installed manually or published to a marketplace.
+The generated `.vsix` file includes all required dependencies and can be installed manually or published to a marketplace.
 
 ### Installing Locally
-
-The `validate-dsl.sh` script automatically installs the extension in Cursor after packaging. The extension version is automatically set to use the current epoch timestamp as the build number (e.g., `0.1.1735689600`) to ensure each build has a unique version.
 
 To manually install the extension:
 
 **For Cursor:**
 ```bash
-# Install from the .vsix file (the version will include the epoch timestamp)
-cursor --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.<epoch>.vsix --force
+# Install from the .vsix file
+cursor --install-extension dist/helium-dsl.vsix --force
 ```
 
 **For VSCode:**
 ```bash
 # Install from the .vsix file
-code --install-extension helium-dsl-vscode-0.1.<epoch>.vsix
-
-# Or use the full path
-code --install-extension ./helium-dsl-vscode/helium-dsl-vscode-0.1.<epoch>.vsix
+code --install-extension dist/helium-dsl.vsix
 ```
 
-Note: The actual VSIX filename will include the epoch timestamp (Unix timestamp in seconds) as the build number, ensuring each build has a unique version identifier.
+The VSIX file is created in the `dist/` directory and includes all required dependencies, ensuring the extension activates correctly without module errors.
 
 ### Publishing to Open VSX Registry
 
@@ -304,9 +341,30 @@ code --install-extension <path-to-vsix-file>
 When packaged, the extension includes:
 - `out/` - Compiled extension code
 - `server/out/` - Bundled language server
+- `server/node_modules/` - Language server dependencies
 - `generated/` - Required generated files (parser, BIF metadata, rules)
 - `syntaxes/` - TextMate grammar for syntax highlighting
 - `language-configuration.json` - Language configuration
+- `node_modules/` - Extension dependencies (including `vscode-languageclient` and all transitive dependencies like `minimatch`, `semver`, `brace-expansion`)
+
+### Troubleshooting Packaging
+
+**Docker not running:**
+```bash
+# Start Docker Desktop or Docker daemon
+# Then retry packaging
+npm run package
+```
+
+**Missing dependencies in VSIX:**
+- The Docker-based packaging automatically includes all transitive dependencies
+- If you see "Cannot find module" errors, ensure you're using the latest VSIX from `dist/helium-dsl.vsix`
+- Rebuild and repackage if needed: `npm run package`
+
+**Packaging fails:**
+- Ensure Docker is running: `docker ps`
+- Check that language server builds successfully: `cd helium-dsl-language-server && npm run build`
+- Check that extension builds successfully: `cd helium-dsl-vscode && npm run build`
 
 ## Contributing
 

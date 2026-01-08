@@ -79,12 +79,10 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "node scripts/prepublish.js",
-    "prepublish": "node scripts/prepublish.js",
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",
-    "package": "node scripts/package-with-deps.js",
+    "package": "docker compose run --rm vsix",
     "test": "echo \"No tests yet\""
   },
   "devDependencies": {

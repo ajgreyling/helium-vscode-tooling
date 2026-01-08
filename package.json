@@ -20,7 +20,8 @@
     "watch": "ts-node scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
     "test": "npm -ws test",
-    "package": "npm -w helium-dsl-vscode run package",
+    "package": "bash scripts/package-docker.sh",
+    "package:docker": "bash scripts/package-docker.sh",
     "package:all": "ts-node scripts/package.ts"
   },
   "devDependencies": {
