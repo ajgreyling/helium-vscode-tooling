@@ -473,18 +473,17 @@ npm test
 
 echo ""
 echo -e "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
 
-# Find the most recently created VSIX file (macOS-specific: ls -t sorts by modification time)
-VSIX_FILE=$(ls -t helium-dsl-vscode-*.vsix 2>/dev/null | head -n 1)
+# VSIX file is created in dist/ directory by the Docker packaging script
+VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"
 
-if [ -z "$VSIX_FILE" ]; then
-    echo -e "${RED}Error: VSIX file not found${NC}"
+if [ ! -f "$VSIX_FILE" ]; then
+    echo -e "${RED}Error: VSIX file not found at $VSIX_FILE${NC}"
     exit 1
 fi
 
 # Get absolute path to VSIX file
-VSIX_ABSOLUTE_PATH="$SCRIPT_DIR/helium-dsl-vscode/$VSIX_FILE"
+VSIX_ABSOLUTE_PATH="$VSIX_FILE"
 
 echo -e "${BLUE}Installing extension: ${VSIX_ABSOLUTE_PATH}${NC}"
 cursor --install-extension "$VSIX_ABSOLUTE_PATH" --force

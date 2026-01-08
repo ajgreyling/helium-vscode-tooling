@@ -19,7 +19,7 @@
     "version-check": "ts-node scripts/version-check.ts",
     "watch": "ts-node scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
-    "test": "npm -ws test",
+    "test": "npm --workspaces run test",
     "package": "bash scripts/package-docker.sh",
     "package:docker": "bash scripts/package-docker.sh",
     "package:all": "ts-node scripts/package.ts"
