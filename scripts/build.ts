@@ -42,7 +42,7 @@ async function main() {
   run("ts-node scripts/generate-textmate.ts");
 
   // 8. Build language server + extension
-  run("npm run build", { cwd: path.join(root, "helium-dsl-language-server") });
+  run("npm run build", { cwd: path.join(root, "..", "helium-dsl-language-server") });
   run("npm run build", { cwd: path.join(root, "helium-dsl-vscode") });
 }
 

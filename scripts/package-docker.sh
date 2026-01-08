@@ -11,11 +11,16 @@ echo ""
 
 # Step 1: Build language server
 echo "Step 1: Building language server..."
-cd "$WORKSPACE_ROOT/helium-dsl-language-server"
+LANGUAGE_SERVER_DIR="$WORKSPACE_ROOT/../helium-dsl-language-server"
+if [ ! -d "$LANGUAGE_SERVER_DIR" ]; then
+  echo "  ✗ Error: Language server directory not found at $LANGUAGE_SERVER_DIR"
+  exit 1
+fi
+cd "$LANGUAGE_SERVER_DIR"
 # Install dependencies locally (not via workspace) to ensure they're in the language server directory
 if [ ! -d "node_modules" ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; then
   echo "  Installing language server dependencies..."
-  npm install --no-workspaces
+  npm install
 fi
 echo "  Building language server..."
 npm run build

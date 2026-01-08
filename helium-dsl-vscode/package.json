@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium DSL",
-  "version": "0.1.1767867162",
+  "version": "0.2.0",
   "publisher": "mezzanineware",
   "repository": {
     "type": "git",

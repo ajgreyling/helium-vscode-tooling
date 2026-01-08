@@ -254,7 +254,7 @@ EOF
 
 # Update test configuration to use the sample project path
 echo -e "${BLUE}Updating test configuration...${NC}"
-cat > "$SCRIPT_DIR/helium-dsl-language-server/tests/munic-chat.test.ts" << EOF
+cat > "$SCRIPT_DIR/../helium-dsl-language-server/tests/munic-chat.test.ts" << EOF
 import { describe, it } from "mocha";
 import { expect } from "chai";
 import * as fs from "fs";
@@ -421,7 +421,7 @@ SAMPLE_PROJECT_PATH="$SAMPLE_PROJECT_PATH" npm run build:textmate
 
 echo ""
 echo -e "${BLUE}=== Step 8: Build Language Server ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-language-server"
+cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
 echo ""
@@ -438,8 +438,8 @@ EPOCH=$(date +%s)
 # Backup original version
 ORIGINAL_VERSION=$(node -p "require('$PACKAGE_JSON').version")
 
-# Update version to use epoch as build number (format: 0.1.<epoch>)
-NEW_VERSION="0.1.$EPOCH"
+# Update version to use epoch as build number (format: 0.2.<epoch>)
+NEW_VERSION="0.2.$EPOCH"
 node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));

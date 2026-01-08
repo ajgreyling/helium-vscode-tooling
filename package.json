@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "description": "Workspace for Helium DSL VSCode extension and language server",
   "workspaces": [
-    "helium-dsl-vscode",
-    "helium-dsl-language-server"
+    "helium-dsl-vscode"
   ],
   "scripts": {
     "build:all": "ts-node scripts/build.ts",
