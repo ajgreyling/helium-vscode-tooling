@@ -18,7 +18,9 @@ scripts/**
 # vsce will bundle dependencies from package.json automatically when they are properly installed
 # We only need to exclude nested node_modules to prevent duplicates
 # DO NOT exclude node_modules/** - vsce needs to include dependencies
+# IMPORTANT: server/node_modules/ must be included for the language server to work
 # Exclude nested node_modules directories to prevent duplicate file errors
+# This pattern excludes node_modules/package/node_modules/ but allows server/node_modules/
 **/node_modules/*/node_modules/**
 
 # Exclude build artifacts

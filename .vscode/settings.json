@@ -1,0 +1,11 @@
+{
+  "npm.exclude": "**/node_modules/**",
+  "npm.scriptExplorerAction": "run",
+  "npm.enableScriptExplorer": true,
+  "npm.autoDetect": "off",
+  "npm.packageManager": "npm",
+  "npm.experimental.usePackageManager": true,
+  "task.autoDetect": "on",
+  "task.quickOpen.detail": true,
+  "task.quickOpen.skip": false
+}
